@@ -32,6 +32,7 @@
     "test:e2e": "npm run build && vitest run --config vitest.e2e.config.ts",
     "demo": "npm run build && node scripts/demo.mjs",
     "rebuild-demo": "npm run build && node scripts/rebuild-demo.mjs",
+    "compare-modes": "npm run build && tsx scripts/compare-modes.mjs",
     "bench": "tsx scripts/bench.mjs",
     "verify": "npm run typecheck && npm run lint && npm run test"
   },

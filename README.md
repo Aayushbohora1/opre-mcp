@@ -318,6 +318,41 @@ researched a target), the outcome is reported as `unavailable` — never as a ze
 
 ---
 
+## Is it actually better than just using an agent?
+
+That is a fair question, and it deserves a measurement rather than a claim.
+`npm run compare-modes` runs the same deterministic builder three ways against the same target and
+scores all three with the same fidelity engine:
+
+| mode                | what the builder gets            | builder input | fidelity          | verified by        | resumable |
+| ------------------- | -------------------------------- | ------------- | ----------------- | ------------------ | --------- |
+| **A** agent only    | a URL, then raw HTML             | 1 kB          | **22% divergent** | nothing            | no        |
+| **B** agent + tools | raw HTML of each route           | 1 kB          | **22% divergent** | nothing            | no        |
+| **C** agent + OPRE  | OPRE's research records over MCP | 5 kB          | **62% partial**   | browser + fidelity | yes       |
+
+(reproduce with `npm run compare-modes`; the numbers move with the target, and OPRE's own validation
+run independently reported 61% on the same build.)
+
+Read honestly:
+
+- **OPRE's advantage is not less context — it is better-shaped context.** Mode C read _more_ bytes
+  and scored ~3× higher, because the bytes were structured: form field names and required flags,
+  interactive controls, image alts, design tokens, provenance. Raw HTML only yields text and hrefs.
+- **Without OPRE nothing checks the result.** A and B have no way to know whether what they built
+  matches; they rely entirely on the agent's own confidence. Mode C got a browser check and a
+  per-route difference list written into `known-gaps.md`.
+- **Without OPRE the work cannot be resumed.** Tasks, findings and decisions live in the project
+  directory, so a new session continues; a conversation-only agent re-derives everything.
+- **This is a lower bound, not a ceiling.** The builder here is deterministic on purpose, so it
+  isolates the information advantage. A real LLM agent adds judgement to _every_ row and would beat
+  all three — but it would still be guessing without the evidence, the persisted state, and the
+  number.
+- **Where the gap is small:** one trivial page. **Where it is large:** many routes, long sessions,
+  and any requirement to _prove_ what was built. OPRE also cannot help with authenticated areas or
+  with the coding judgement itself.
+
+---
+
 ## Configuration (environment variables)
 
 All configuration is environment-based, validated at startup, and printed by

@@ -45,12 +45,10 @@ browser, and then **measures how close it is to the original**:
 
 ```
 [6/6] fidelity against the reference
-  overall 93% close across 1 route(s)
+  overall 94% close across 1 route(s)
 
-   93%  /  close
-        - tokens: missing "font:system-ui"
-        - tokens: missing "size:14px"
-        - tokens: unexpected "font:Times New Roman"
+   94%  /  close
+        - tokens: missing "size:16px"
 ```
 
 That number is the point. Without OPRE the builder had a URL and nothing else; with it, the builder
@@ -76,38 +74,45 @@ first move should be `opre.get_guide`, which returns the exact next steps for th
 
 ---
 
-## Why it is built this way
+## How it works
 
-| Problem with "just look at the screenshots"                | How OPRE answers it                                                                                                                                    |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Agents reload the whole project into context every session | Every response is size-bounded and paginated; state lives on disk, not in the conversation.                                                            |
-| Claims drift from reality                                  | Findings carry provenance, confidence and _limitations_; validation runs prove behaviour in a browser.                                                 |
-| Targets can try to manipulate the agent                    | Captured content is stored as untrusted evidence, scanned for injected instructions, and never treated as a command.                                   |
-| One giant code-generation pass                             | A dependency-aware backlog; the agent takes one task, implements it, records it, validates it.                                                         |
-| "It looks the same"                                        | Validation compares the running app to the reference **structurally and visually**, and reports a per-route fidelity score with the exact differences. |
+```mermaid
+flowchart LR
+  U[You: a URL you own or are<br/>authorised to analyse] --> A
+  subgraph AG[Your agent - reasoning and code]
+    A[Decides what to do next]
+  end
+  subgraph OPRE[OPRE - MCP server on stdio]
+    direction TB
+    R[Research<br/>browser + static analysis] --> K[Knowledge<br/>findings, evidence, features]
+    K --> P[Planning<br/>dependency-ordered tasks]
+    P --> B[Build context<br/>one task, size-bounded]
+    B --> V[Validation<br/>browser checks]
+    V --> F[Fidelity<br/>diff vs reference]
+    F -. differences feed back .-> K
+  end
+  A <-->|MCP tools| OPRE
+  OPRE --> D[(Project directory<br/>survives restarts)]
+  V --> APP[app/<br/>the rebuild]
+  F --> REPORT[score + named<br/>differences]
+```
 
-agent (reasoning + codegen) <──MCP tools──> OPRE (research · knowledge · planning · validation)
-└──> project directory on disk (survives restarts)
+Five steps, each writing to disk before the next begins:
 
-````
+1. **Research** — a real browser records what the target does: routes, forms with field names and
+   required flags, interactive controls, design tokens, screenshots, console and network errors.
+   Every observation becomes a finding with a source, a confidence and an explicit _limitation_.
+2. **Planning** — findings become features with verifiable acceptance criteria, and a backlog where
+   each task depends only on work that is already done.
+3. **Build context** — the agent receives exactly what one task needs, within a character budget;
+   anything trimmed is reported so it can be fetched explicitly.
+4. **Validation** — OPRE starts the app (no shell, scrubbed environment) and runs the acceptance
+   checks in Chromium.
+5. **Fidelity** — the running app is diffed against the reference fingerprints, producing a
+   per-route score and a named list of what still differs, which becomes the next iteration's input.
 
----
-
-## Table of contents
-
-- [Requirements](#requirements)
-- [Install](#install)
-- [Connect a client](#connect-a-client)
-- [The two workflows](#the-two-workflows)
-- [Tool reference](#tool-reference)
-- [Project layout](#project-layout)
-- [Configuration (environment variables)](#configuration-environment-variables)
-- [Context safety](#context-safety)
-- [Security model](#security-model)
-- [Development](#development)
-- [What works today](#what-works-today)
-- [Known limitations](#known-limitations)
-- [License](#license)
+Untrusted input is the constant concern: page text, comments and package strings are stored as
+evidence, scanned for injected instructions, and never treated as commands.
 
 ---
 
@@ -129,7 +134,7 @@ cd opre-mcp
 npm install
 npm run build
 node dist/index.js --help
-````
+```
 
 During development you can run the server straight from TypeScript:
 
@@ -298,12 +303,13 @@ them.
 
 | Section       | Weight | What a mismatch means                 |
 | ------------- | ------ | ------------------------------------- |
-| headings      | 30%    | wrong information architecture        |
-| text          | 25%    | missing or invented copy              |
-| links         | 15%    | broken or extra navigation            |
-| forms         | 10%    | wrong fields, types or required flags |
-| interactive   | 10%    | missing controls                      |
-| design tokens | 5%     | different look and feel               |
+| headings      | 28%    | wrong information architecture        |
+| text          | 22%    | missing or invented copy              |
+| links         | 13%    | broken or extra navigation            |
+| forms         | 9%     | wrong fields, types or required flags |
+| interactive   | 8%     | missing controls                      |
+| landmarks     | 8%     | missing header/nav/main/footer        |
+| design tokens | 7%     | different look and feel               |
 | visual        | 5%     | pixel delta of the screenshots        |
 
 Scoring is F1 per section, so **missing** content and **invented** content are both defects. The
@@ -324,20 +330,21 @@ That is a fair question, and it deserves a measurement rather than a claim.
 `npm run compare-modes` runs the same deterministic builder three ways against the same target and
 scores all three with the same fidelity engine:
 
-| mode                | what the builder gets            | builder input | fidelity          | verified by        | resumable |
-| ------------------- | -------------------------------- | ------------- | ----------------- | ------------------ | --------- |
-| **A** agent only    | a URL, then raw HTML             | 1 kB          | **22% divergent** | nothing            | no        |
-| **B** agent + tools | raw HTML of each route           | 1 kB          | **22% divergent** | nothing            | no        |
-| **C** agent + OPRE  | OPRE's research records over MCP | 5 kB          | **62% partial**   | browser + fidelity | yes       |
+| mode                | what the builder gets            | builder input | fidelity        | verified by        | resumable |
+| ------------------- | -------------------------------- | ------------- | --------------- | ------------------ | --------- |
+| **A** agent only    | a URL, then raw HTML             | 1 kB          | **56% partial** | nothing            | no        |
+| **B** agent + tools | raw HTML of each route           | 1 kB          | **56% partial** | nothing            | no        |
+| **C** agent + OPRE  | OPRE's research records over MCP | 5 kB          | **94% close**   | browser + fidelity | yes       |
 
-(reproduce with `npm run compare-modes`; the numbers move with the target, and OPRE's own validation
-run independently reported 61% on the same build.)
+Reproduce with `npm run compare-modes`; the numbers move with the target. On this run OPRE's own
+`opre.run_validation` independently reported the same **94%** for the same build.
 
 Read honestly:
 
 - **OPRE's advantage is not less context — it is better-shaped context.** Mode C read _more_ bytes
-  and scored ~3× higher, because the bytes were structured: form field names and required flags,
-  interactive controls, image alts, design tokens, provenance. Raw HTML only yields text and hrefs.
+  and scored ~40 points higher, because the bytes were structured: landmarks, form field names and
+  required flags, interactive controls, image alts, design tokens, provenance. Raw HTML yields text
+  and hrefs, and nothing else.
 - **Without OPRE nothing checks the result.** A and B have no way to know whether what they built
   matches; they rely entirely on the agent's own confidence. Mode C got a browser check and a
   per-route difference list written into `known-gaps.md`.

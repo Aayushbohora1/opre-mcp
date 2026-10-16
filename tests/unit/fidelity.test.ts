@@ -71,10 +71,15 @@ describe('diffFingerprints', () => {
     expect(text?.rebuilt).toBe(3);
   });
 
-  it('reports missing landmarks', async () => {
+  it('scores landmarks as their own section', async () => {
     const rebuilt = fingerprint({ landmarks: ['main'] });
     const report = await diffFingerprints(fingerprint(), rebuilt);
-    expect(report.differences.join(' ')).toContain('landmarks: missing header, footer');
+    expect(report.differences.join(' ')).toContain('landmarks: missing "header"');
+    const landmarks = report.sections.find((section) => section.name === 'landmarks');
+    expect(landmarks?.reference).toBe(3);
+    expect(landmarks?.rebuilt).toBe(1);
+    expect(landmarks?.score).toBeGreaterThan(0);
+    expect(landmarks?.score).toBeLessThan(1);
   });
 
   it('compares form fields, not just form counts', async () => {

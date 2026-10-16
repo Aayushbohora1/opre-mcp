@@ -33,12 +33,13 @@ export interface FidelityReport {
 }
 
 const WEIGHTS: Record<string, number> = {
-  headings: 0.3,
-  text: 0.25,
-  links: 0.15,
-  forms: 0.1,
-  interactive: 0.1,
-  tokens: 0.05,
+  headings: 0.28,
+  text: 0.22,
+  links: 0.13,
+  forms: 0.09,
+  interactive: 0.08,
+  landmarks: 0.08,
+  tokens: 0.07,
   visual: 0.05,
 };
 
@@ -80,6 +81,7 @@ export async function diffFingerprints(
       differences,
       maxDifferences,
     ),
+    compareSet('landmarks', reference.landmarks, rebuilt.landmarks, differences, maxDifferences),
     compareSet(
       'tokens',
       [
@@ -96,16 +98,6 @@ export async function diffFingerprints(
       maxDifferences,
     ),
   ];
-
-  if (reference.landmarks.join(',') !== rebuilt.landmarks.join(',')) {
-    const missing = reference.landmarks.filter((entry) => !rebuilt.landmarks.includes(entry));
-    const extra = rebuilt.landmarks.filter((entry) => !reference.landmarks.includes(entry));
-    push(
-      differences,
-      maxDifferences,
-      `landmarks: missing ${missing.join(', ') || 'none'}, extra ${extra.join(', ') || 'none'}`,
-    );
-  }
 
   const visual = await compareScreenshots(
     options.referenceScreenshotPath ?? reference.screenshotPath,

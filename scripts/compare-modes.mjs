@@ -15,7 +15,7 @@
  * Usage: npm run compare-modes -- [url]
  */
 
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -26,7 +26,7 @@ import { launchBrowser, installTransformShim } from '../src/research/browser.js'
 import { captureFingerprint } from '../src/research/fingerprint.js';
 import { diffFingerprints } from '../src/validation/fidelity.js';
 import { loadConfig } from '../src/config.js';
-
+import { renderPage, writeSite } from './lib/static-builder.mjs';
 const target = process.argv[2] ?? 'https://example.com';
 const maxRoutes = Number(process.env.COMPARE_MAX_ROUTES ?? '3');
 const home = await mkdtemp(join(tmpdir(), 'opre-compare-'));
@@ -35,41 +35,6 @@ const config = loadConfig({ ...process.env, OPRE_HOME: home, OPRE_ALLOW_PRIVATE_
 const bold = (t) => `[1m${t}[0m`;
 const dim = (t) => `[2m${t}[0m`;
 const green = (t) => `[32m${t}[0m`;
-
-const SERVER_SOURCE = `const http = require('node:http');
-const { readFileSync } = require('node:fs');
-const { join } = require('node:path');
-const evidence = JSON.parse(readFileSync(join(__dirname, 'site.json'), 'utf8'));
-const escape = (value) =>
-  String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-function render(page) {
-  if (page === undefined) return '<!doctype html><h1>Not found</h1>';
-  const lines = ['<h1>' + escape(page.title) + '</h1>'];
-  for (const heading of page.headings) {
-    const level = Math.min(6, Math.max(1, heading.level));
-    lines.push('<h' + level + '>' + escape(heading.text) + '</h' + level + '>');
-  }
-  for (const block of page.text || []) lines.push('<p>' + escape(block) + '</p>');
-  for (const link of (page.links || []).slice(0, 20)) {
-    lines.push('<a href="' + escape(link) + '">' + escape(link) + '</a>');
-  }
-  return (
-    '<!doctype html><html><head><meta charset="utf-8"><title>' + escape(page.title) +
-    '</title></head><body>' + lines.join('') + '</body></html>'
-  );
-}
-http
-  .createServer((request, response) => {
-    const { pathname } = new URL(request.url, 'http://localhost');
-    const page =
-      evidence.find((entry) => entry.route === pathname) ||
-      evidence.find((entry) => entry.route === '/') ||
-      evidence[0];
-    response.writeHead(page === undefined ? 404 : 200, { 'content-type': 'text/html; charset=utf-8' });
-    response.end(render(page));
-  })
-  .listen(Number(process.env.PORT || 4173), '127.0.0.1');
-`;
 
 // --- Mode C: the full OPRE pipeline, which also produces the reference --------
 
@@ -191,20 +156,22 @@ for (const mode of [modeA, modeB, modeC]) {
   // Mode C builds inside the OPRE project so the real opre.run_validation can use it.
   const appDir =
     mode === modeC ? join(root, 'app') : join(home, mode.label.replace(/\W+/g, '-').toLowerCase());
-  await mkdir(appDir, { recursive: true });
-  await writeFile(join(appDir, 'site.json'), JSON.stringify(mode.evidence, null, 2));
-  await writeFile(join(appDir, 'server.js'), SERVER_SOURCE);
+
+  // One builder, rendered once: the benchmark, the browser check and OPRE's own
+  // validation all serve the exact same bytes.
+  await writeSite(appDir, mode.evidence);
+  const files = new Map(mode.evidence.map((page) => [page.route, renderPage(page)]));
 
   const server = createServer((request, response) => {
     const { pathname } = new URL(request.url, 'http://localhost');
-    const page =
-      mode.evidence.find((entry) => entry.route === pathname) ??
-      mode.evidence.find((entry) => entry.route === '/') ??
-      mode.evidence[0];
-    response.writeHead(page === undefined ? 404 : 200, {
-      'content-type': 'text/html; charset=utf-8',
-    });
-    response.end(renderPage(page));
+    const html = files.get(pathname) ?? files.get('/') ?? files.values().next().value;
+    if (html === undefined) {
+      response.writeHead(404, { 'content-type': 'text/html' });
+      response.end('<!doctype html><h1>Not found</h1>');
+      return;
+    }
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    response.end(html);
   });
   await new Promise((resolve) => {
     server.listen(port, '127.0.0.1', resolve);
@@ -356,80 +323,6 @@ function stripTags(value) {
     .replace(/&[a-z]+;/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-/**
- * The one builder, used by all three modes. It renders whatever the evidence it is
- * given contains: raw HTML yields text and hrefs only, OPRE evidence additionally
- * yields form fields, controls, image alts and design tokens. That difference *is*
- * the measurement — the code is identical.
- */
-function renderPage(page) {
-  if (page === undefined) {
-    return '<!doctype html><html><body><h1>Not found</h1></body></html>';
-  }
-  const tokens = page.tokens ?? {};
-  const style = [
-    tokens.fontFamilies?.[0] !== undefined
-      ? `body{font-family:${escapeHtml(tokens.fontFamilies[0])},system-ui,sans-serif}`
-      : '',
-    tokens.fontSizes?.[0] !== undefined ? `body{font-size:${escapeHtml(tokens.fontSizes[0])}}` : '',
-    tokens.colors?.[0] !== undefined ? `body{color:${escapeHtml(tokens.colors[0])}}` : '',
-    tokens.colors?.[1] !== undefined ? `body{background:${escapeHtml(tokens.colors[1])}}` : '',
-  ]
-    .filter(Boolean)
-    .join('');
-
-  const body = [];
-  body.push(`<h1>${escapeHtml(page.title)}</h1>`);
-  for (const heading of page.headings ?? []) {
-    const level = Math.min(6, Math.max(1, heading.level));
-    body.push(`<h${level}>${escapeHtml(heading.text)}</h${level}>`);
-  }
-  const headingTexts = new Set((page.headings ?? []).map((heading) => heading.text));
-  for (const block of page.text ?? []) {
-    if (!headingTexts.has(block)) {
-      body.push(`<p>${escapeHtml(block)}</p>`);
-    }
-  }
-  for (const form of page.forms ?? []) {
-    const [method, action] = form.method !== undefined ? [form.method, ''] : ['get', ''];
-    body.push(
-      `<form method="${escapeHtml(method)}"${action === '' ? '' : ` action="${escapeHtml(action)}"`}>`,
-    );
-    for (const field of form.fields ?? []) {
-      const [name, rest] = field.split(':');
-      const required = rest?.endsWith('*') === true;
-      const type = (rest ?? 'text').replace('*', '');
-      body.push(
-        `<label>${escapeHtml(name)} <input name="${escapeHtml(name)}" type="${escapeHtml(type)}"${required ? ' required' : ''}></label>`,
-      );
-    }
-    body.push('<button type="submit">Submit</button></form>');
-  }
-  for (const control of page.interactive ?? []) {
-    body.push(`<button type="button">${escapeHtml(control.split(':').pop() ?? control)}</button>`);
-  }
-  for (const alt of page.images ?? []) {
-    body.push(`<img alt="${escapeHtml(alt)}" width="120" height="80">`);
-  }
-  for (const link of (page.links ?? []).slice(0, 20)) {
-    body.push(`<a href="${escapeHtml(link)}">${escapeHtml(link)}</a>`);
-  }
-
-  return (
-    `<!doctype html><html><head><meta charset="utf-8">` +
-    (style === '' ? '' : `<style>${style}</style>`) +
-    `<title>${escapeHtml(page.title)}</title></head><body>${body.join('')}</body></html>`
-  );
 }
 
 async function scoreRoutes(listenPort, refs) {

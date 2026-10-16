@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+.vitest/
+*.tsbuildinfo
+.opre/
+.opre-data/
+.env
+.env.local
+tmp/
+playwright-report/
+test-results/

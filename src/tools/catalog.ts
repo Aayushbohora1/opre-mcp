@@ -165,6 +165,26 @@ export const TOOL_COPY = {
       'Validation history: recent runs, failures per task, open gaps, and the detail of any single run.\n' +
       'Use it to decide what to fix next.',
   },
+  'opre.capture_assets': {
+    title: 'Download the real assets',
+    description:
+      'Downloads the images, fonts, stylesheets and media the target actually renders — including srcset sources, video posters and computed background images — into artifacts/assets/, deduped across routes, with the captured CSS rewritten to point at the local files.\n' +
+      'This is the step that turns "evidence about a site" into material you can build against. Off-allowlist and private URLs are refused and reported.\n' +
+      'Run it after opre.start_research, before opre.scaffold_app.',
+  },
+  'opre.get_reference_pack': {
+    title: 'Get everything to copy',
+    description:
+      'One call that returns, per route, the local paths of: the reference screenshot, the accessibility tree, the captured stylesheet and computed-style map, the asset manifest — plus the heading outline, text-block count, forms, controls, landmarks and design tokens to match.\n' +
+      'Call this before writing code so the agent works from the real target instead of guessing from pixels.',
+  },
+  'opre.scaffold_app': {
+    title: 'Scaffold a runnable copy',
+    description:
+      "Writes a runnable starting point into app/: one HTML file per route using the observed landmarks, headings, text, forms, controls and image alts, the target's own stylesheet, and the localised assets — plus a tiny static server and a route map.\n" +
+      'It is a baseline to refine, not a finished clone; the agent owns the remaining detail and opre.run_validation scores the result.\n' +
+      'Refuses to run without a recorded authorisation, and never overwrites existing work without force=true.',
+  },
   'opre.inspect_app_package': {
     title: 'Inspect an app package',
     description:

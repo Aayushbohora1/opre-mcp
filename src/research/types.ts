@@ -91,6 +91,27 @@ import type { PageFingerprint } from './fingerprint.js';
 /** Everything about a page except the screenshot path and capture time. */
 export type FingerprintRecord = Omit<PageFingerprint, 'screenshotPath' | 'capturedAt'>;
 
+export interface StylePackRecord {
+  cssPath: string | null;
+  computedCssPath: string | null;
+  variables: number;
+  mediaQueries: number;
+  keyframes: number;
+  fontFaces: number;
+  computedCount: number;
+}
+
+export interface AssetPackRecord {
+  manifestPath: string;
+  /** Stylesheet whose url(...) already points at the localised assets. */
+  cssPath: string | null;
+  total: number;
+  ok: number;
+  failed: number;
+  skipped: number;
+  bytes: number;
+}
+
 export interface PageRecord {
   id: string;
   url: string;
@@ -114,6 +135,12 @@ export interface PageRecord {
   injectedInstructionSignals: number;
   /** Structural signature used for fidelity comparison against the rebuild. */
   fingerprint: FingerprintRecord | null;
+  /** Compact role/label tree: cheap, and resilient to layout reflow. */
+  ariaSnapshotPath: string | null;
+  /** The target's own CSS and a computed-style map, captured from the page. */
+  stylePack: StylePackRecord | null;
+  /** Localised images/fonts/media for this route, written by `opre.capture_assets`. */
+  assetPack: AssetPackRecord | null;
   collectedAt: string;
   notes: string;
 }

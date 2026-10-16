@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { loadConfig, type OpreConfig } from './config.js';
 import { registerAppTools } from './tools/app-tools.js';
 import { registerBuildTools } from './tools/build-tools.js';
+import { registerCloneTools } from './tools/clone-tools.js';
 import { registerGuideTools } from './tools/guide-tools.js';
 import { registerKnowledgeTools } from './tools/knowledge-tools.js';
 import { registerPlanningTools } from './tools/planning-tools.js';
@@ -60,6 +61,7 @@ export function createOpreServer(options: CreateServerOptions = {}): {
   registerProjectTools(server, config);
   registerGuideTools(server, config);
   registerResearchTools(server, config);
+  registerCloneTools(server, config);
   registerKnowledgeTools(server, config);
   registerPlanningTools(server, config);
   registerBuildTools(server, config);

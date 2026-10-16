@@ -25,6 +25,7 @@ import { createContext, installTransformShim, launchBrowser } from './browser.js
 import { newPageRecord, newSourceRecord } from './store.js';
 import type { FindingRecord, FingerprintRecord, PageRecord, SourceRecord } from './types.js';
 import { captureFingerprint } from './fingerprint.js';
+import { captureStyleAndAria } from './reference-pack.js';
 
 export interface ResearchProgress {
   report: (message: string, progress?: number, total?: number) => void | Promise<void>;
@@ -319,14 +320,27 @@ async function inspectPage(
   const signals = scanForInjection(bodyText, 5);
   const redactions = findSecrets(bodyText);
 
-  // Structural signature for later fidelity comparison against the rebuild.
+  // Structural signature, accessibility tree and the page's own CSS: the three
+  // artifacts a rebuild needs instead of guessing from a screenshot.
   let fingerprint: FingerprintRecord | null = null;
+  let reference: { ariaSnapshotPath: string | null; stylePack: PageRecord['stylePack'] } = {
+    ariaSnapshotPath: null,
+    stylePack: null,
+  };
   if (error === null) {
     try {
       fingerprint = await captureFingerprint(page);
     } catch (caught) {
       pageErrors.push(
         `fingerprint capture failed: ${caught instanceof Error ? caught.message : String(caught)}`,
+      );
+    }
+    try {
+      const captured = await captureStyleAndAria(page, paths, pageId);
+      reference = { ariaSnapshotPath: captured.ariaPath, stylePack: captured.stylePack };
+    } catch (caught) {
+      pageErrors.push(
+        `style/aria capture failed: ${caught instanceof Error ? caught.message : String(caught)}`,
       );
     }
   }
@@ -354,6 +368,9 @@ async function inspectPage(
       failedRequests: dedupe(failedRequests).slice(0, 10),
       injectedInstructionSignals: signals.length,
       fingerprint,
+      ariaSnapshotPath: reference.ariaSnapshotPath,
+      stylePack: reference.stylePack,
+      assetPack: null,
       notes: error === null ? pageErrors.join('; ') : `Navigation failed: ${error}`,
     }),
     id: pageId,

@@ -46,6 +46,9 @@ async function seed(env: TestEnv) {
     failedRequests: [],
     injectedInstructionSignals: 0,
     fingerprint: null,
+    ariaSnapshotPath: null,
+    stylePack: null,
+    assetPack: null,
     collectedAt: nowIso(),
     notes: '',
   }));

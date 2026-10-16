@@ -113,7 +113,10 @@ export async function compareWithReference(
         const report = await diffFingerprints(
           {
             ...(reference.fingerprint as PageFingerprint),
-            screenshotPath: reference.screenshotPath,
+            screenshotPath:
+              reference.screenshotPath === null
+                ? null
+                : join(paths.screenshots, reference.screenshotPath),
             capturedAt: reference.collectedAt,
           },
           rebuiltFingerprint,

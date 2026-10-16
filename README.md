@@ -187,15 +187,29 @@ node dist/index.js --print-config
    interactive elements, viewports, screenshots, console/network errors). Optional web search
    via a configured provider.
 3. `opre.get_research_summary` — compact, bounded overview of what was learned.
-4. `opre.create_implementation_plan` — `mode: "draft"` proposes features and tasks from the
+4. `opre.capture_assets` — download the images, fonts, media and stylesheets the pages actually
+   use (lazy images, `srcset`, posters, computed backgrounds), dedupe them across routes and
+   record a manifest. Anything off the allowlist is reported, never silently dropped.
+5. `opre.get_reference_pack` — one call that hands the agent every local file it needs: the
+   screenshot, the target's real CSS, the computed-style map, the accessibility tree and the
+   asset manifest for each route.
+6. `opre.scaffold_app` — **optional.** Writes a runnable baseline into `app/`: markup with the
+   captured landmarks, the captured stylesheet (with `url(...)` pointed at the localised copies),
+   localised assets and a route table. It refuses to run without a recorded authorisation and
+   never overwrites an existing `app/` unless you pass `force: true`.
+7. `opre.create_implementation_plan` — `mode: "draft"` proposes features and tasks from the
    researched routes; refine with `opre.upsert_task` / `opre.upsert_feature`, or re-submit with
    `mode: "apply"`.
-5. Configure the runner once: `opre.update_project_config` with `runnerCommand` / `runnerArgs` /
+8. Configure the runner once: `opre.update_project_config` with `runnerCommand` / `runnerArgs` /
    `runnerPort` (e.g. `npm`, `["run", "dev", "--", "--port", "4173"]`).
-6. Loop until the plan is satisfied:
+9. Loop until the plan is satisfied:
    `opre.get_next_task` → `opre.prepare_build_context` → implement in `app/` →
    `opre.record_implementation_result` → `opre.run_validation`.
-7. `opre.get_validation_report` and `validation/known-gaps.md` feed the next iteration.
+10. `opre.get_validation_report` and `validation/known-gaps.md` feed the next iteration.
+
+The scaffold is a **starting point, not a finished clone**. It reproduces structure, styles and
+assets; responsive behaviour, real interactivity and semantics are the agent's job, and the
+fidelity score tells it exactly what is still wrong.
 
 ### `/opreapp <package>` — rebuild an application as a web app
 
@@ -220,33 +234,36 @@ Every tool has a short title and a description that says _when to use it and wha
 The same copy lives in [`src/tools/catalog.ts`](./src/tools/catalog.ts) — the single owner of the
 agent-facing surface.
 
-| Tool                                | Title                      | Use it to                                                                 |
-| ----------------------------------- | -------------------------- | ------------------------------------------------------------------------- |
-| `opre.create_project`               | Start a project            | Create the isolated workspace for a target.                               |
-| `opre.get_guide`                    | What to do next            | Get the stage-aware playbook with example arguments. **Start here.**      |
-| `opre.list_projects`                | List projects              | Discover project names/ids.                                               |
-| `opre.get_project_status`           | Project status             | See stage, counts, progress, next action.                                 |
-| `opre.update_project_config`        | Project settings           | Configure the dev server, app dir, allowed hosts, attempt limits.         |
-| `opre.start_research`               | Research the target        | Observe the real site in a browser and store evidence.                    |
-| `opre.get_research_summary`         | Research summary           | Read a bounded overview and the explicit unknowns.                        |
-| `opre.search_research`              | Search research            | Ranked search over pages and findings.                                    |
-| `opre.add_finding`                  | Record a finding           | Store an observed/derived/hypothesis conclusion with limitations.         |
-| `opre.search_knowledge`             | Search the knowledge base  | Bounded, paginated search across everything known.                        |
-| `opre.get_feature`                  | Get a feature              | Read one feature with criteria, evidence and tasks.                       |
-| `opre.upsert_feature`               | Create or update a feature | Write a feature record.                                                   |
-| `opre.get_evidence`                 | Get evidence               | Check the observations behind a claim.                                    |
-| `opre.get_document_excerpt`         | Read a document            | Excerpt one project document, paginated.                                  |
-| `opre.record_note`                  | Record a note              | Append a requirement, decision, uncertainty or workflow.                  |
-| `opre.create_implementation_plan`   | Plan the build             | Turn research into features and ordered tasks.                            |
-| `opre.list_tasks`                   | List tasks                 | Review the backlog and what is blocked.                                   |
-| `opre.get_next_task`                | Next task                  | Take the highest-priority actionable task.                                |
-| `opre.upsert_task`                  | Create or update a task    | Write one task and its browser checks.                                    |
-| `opre.update_task_status`           | Update task status         | Move a task through its lifecycle.                                        |
-| `opre.prepare_build_context`        | Prepare build context      | Get everything one task needs, within budget.                             |
-| `opre.record_implementation_result` | Record the result          | Store what was built, what passed, what is missing.                       |
-| `opre.run_validation`               | Run validation             | Start the app, run acceptance checks, and score it against the reference. |
-| `opre.get_validation_report`        | Validation report          | See run history, failures per task, open gaps.                            |
-| `opre.inspect_app_package`          | Inspect an app package     | Authorised static analysis of an `.apk`/`.ipa`/`.zip`.                    |
+| Tool                                | Title                      | Use it to                                                                  |
+| ----------------------------------- | -------------------------- | -------------------------------------------------------------------------- |
+| `opre.create_project`               | Start a project            | Create the isolated workspace for a target.                                |
+| `opre.get_guide`                    | What to do next            | Get the stage-aware playbook with example arguments. **Start here.**       |
+| `opre.list_projects`                | List projects              | Discover project names/ids.                                                |
+| `opre.get_project_status`           | Project status             | See stage, counts, progress, next action.                                  |
+| `opre.update_project_config`        | Project settings           | Configure the dev server, app dir, allowed hosts, attempt limits.          |
+| `opre.start_research`               | Research the target        | Observe the real site in a browser and store evidence.                     |
+| `opre.get_research_summary`         | Research summary           | Read a bounded overview and the explicit unknowns.                         |
+| `opre.capture_assets`               | Capture assets             | Download images, fonts, media and CSS; dedupe; write per-route manifests.  |
+| `opre.get_reference_pack`           | Reference pack             | One call for every screenshot, stylesheet, style map, a11y tree, manifest. |
+| `opre.scaffold_app`                 | Scaffold the rebuild       | Write a runnable baseline into `app/` from the captured evidence.          |
+| `opre.search_research`              | Search research            | Ranked search over pages and findings.                                     |
+| `opre.add_finding`                  | Record a finding           | Store an observed/derived/hypothesis conclusion with limitations.          |
+| `opre.search_knowledge`             | Search the knowledge base  | Bounded, paginated search across everything known.                         |
+| `opre.get_feature`                  | Get a feature              | Read one feature with criteria, evidence and tasks.                        |
+| `opre.upsert_feature`               | Create or update a feature | Write a feature record.                                                    |
+| `opre.get_evidence`                 | Get evidence               | Check the observations behind a claim.                                     |
+| `opre.get_document_excerpt`         | Read a document            | Excerpt one project document, paginated.                                   |
+| `opre.record_note`                  | Record a note              | Append a requirement, decision, uncertainty or workflow.                   |
+| `opre.create_implementation_plan`   | Plan the build             | Turn research into features and ordered tasks.                             |
+| `opre.list_tasks`                   | List tasks                 | Review the backlog and what is blocked.                                    |
+| `opre.get_next_task`                | Next task                  | Take the highest-priority actionable task.                                 |
+| `opre.upsert_task`                  | Create or update a task    | Write one task and its browser checks.                                     |
+| `opre.update_task_status`           | Update task status         | Move a task through its lifecycle.                                         |
+| `opre.prepare_build_context`        | Prepare build context      | Get everything one task needs, within budget.                              |
+| `opre.record_implementation_result` | Record the result          | Store what was built, what passed, what is missing.                        |
+| `opre.run_validation`               | Run validation             | Start the app, run acceptance checks, and score it against the reference.  |
+| `opre.get_validation_report`        | Validation report          | See run history, failures per task, open gaps.                             |
+| `opre.inspect_app_package`          | Inspect an app package     | Authorised static analysis of an `.apk`/`.ipa`/`.zip`.                     |
 
 Unsupported capabilities are never faked: tools return a structured `unsupported_capability`
 error with an actionable hint (for example, no web-search provider configured, or no Chromium
@@ -281,6 +298,9 @@ available).
   artifacts/
     screenshots/                research and validation screenshots
     reports/                    build results, optional research HAR
+    styles/                     the target's real CSS + computed-style map, per page
+    aria/                       compact role/label accessibility tree, per page
+    assets/<route>/             downloaded images, fonts, media + manifest.json
   app/                          the rebuilt application (written by the agent)
 ```
 
@@ -510,7 +530,7 @@ Milestone status and design decisions are tracked in [`docs/DEVELOPMENT_LOG.md`]
 
 Verified by the test suite (unit + integration + stdio end-to-end):
 
-- An MCP client can connect over stdio and call all 24 tools; two prompts are exposed.
+- An MCP client can connect over stdio and call all 28 tools; two prompts are exposed.
 - Projects are created, isolated, listed and resumed across server restarts.
 - Website research runs a real Chromium against an authorised target and persists pages,
   screenshots, sources, findings and evidence; blocked requests and injection signals are recorded.
@@ -520,6 +540,11 @@ Verified by the test suite (unit + integration + stdio end-to-end):
   feature status and known gaps.
 - The runner starts a real dev server (no shell, scrubbed env) and Playwright checks run against
   it; failures, screenshots, console errors and failed requests are stored and re-readable.
+- Asset capture downloads the images, fonts, media and stylesheets a page really uses, dedupes
+  them across routes, rewrites `url(...)` in the captured CSS to the local copies, and reports
+  every URL it refused (off-allowlist or private address).
+- The reference pack hands the agent every artifact as a path in one call; the scaffold turns that
+  into a runnable baseline with localised images and the target's own stylesheet.
 - Application packages are inspected statically with clear statements of what that cannot reveal.
 - Security controls (path traversal, SSRF, shell metacharacters, denied executables, symlink
   escapes, secret redaction) are covered by tests.
@@ -535,6 +560,12 @@ Stated plainly, and also returned by the tools themselves:
 - **Crawl coverage is bounded** by page/depth/time limits; deeper areas stay unobserved.
 - **Application inspection reads declared strings only** — no decompilation to source, no runtime
   behaviour, no server-side logic.
+- **The scaffold is a baseline, not a finished clone.** It reproduces landmarks, text, links,
+  forms, the captured stylesheet and localised assets. Responsive behaviour, animation, real
+  interactivity and server-side behaviour are left to the agent.
+- **Assets are only downloaded from the target host and any hosts you explicitly allowed.**
+  A site that depends on a CDN you have not allow-listed will rebuild without it, and OPRE tells
+  you which URLs it skipped instead of pretending they are covered.
 - **Visual equivalence is not proof of functional equivalence.** Validation checks are declarative
   assertions you define; OPRE does not claim completeness from a passing subset.
 - **Transport** is stdio only in v1. The server is transport-agnostic, but no HTTP transport is

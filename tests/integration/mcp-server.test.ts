@@ -8,6 +8,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createOpreServer } from '../../src/server.js';
 import { createTestEnv, toolJson, toolText, type TestEnv } from '../helpers.js';
 import { startTestSite, type TestSite } from '../helpers/site.js';
+import { TOOL_COPY } from '../../src/tools/catalog.js';
 
 describe('MCP server (in-memory transport)', () => {
   let env: TestEnv;
@@ -383,12 +384,16 @@ describe('MCP server (in-memory transport)', () => {
 
   it('gives every tool a title and a description that says when to use it', async () => {
     const { tools } = await client.listTools();
-    expect(tools).toHaveLength(25);
+    // Every documented tool must exist; the exact count is asserted so that
+    // adding a tool without updating the docs/catalog fails loudly.
+    expect(tools).toHaveLength(Object.keys(TOOL_COPY).length);
     for (const tool of tools) {
       expect(tool.title ?? '').not.toBe('');
+      expect(tool.title).toBe(TOOL_COPY[tool.name as keyof typeof TOOL_COPY]?.title);
       const description = tool.description ?? '';
       expect(description.length).toBeGreaterThan(40);
-      expect(description.length).toBeLessThan(700);
+      expect(description.length).toBeLessThan(900);
+      expect(description).toBe(TOOL_COPY[tool.name as keyof typeof TOOL_COPY]?.description);
     }
     const guide = tools.find((tool) => tool.name === 'opre.get_guide');
     expect(guide?.description).toContain('stage-aware playbook');
@@ -484,6 +489,163 @@ describe('MCP server (in-memory transport)', () => {
     expect(result.fidelity.note).toMatch(/reference/i);
   });
 
+  it('localises assets, exposes a reference pack and scaffolds a runnable copy', async () => {
+    const created = toolJson<{ project: string; root: string }>(
+      await client.callTool({
+        name: 'opre.create_project',
+        arguments: {
+          target: site.origin,
+          targetType: 'web',
+          name: 'clone-e2e',
+          authorisation: 'I own this test site',
+        },
+      }),
+    );
+    const project = created.project;
+    await client.callTool({
+      name: 'opre.start_research',
+      arguments: { project, maxPages: 2, maxDepth: 1, includeScreenshots: true },
+    });
+
+    // The reference pack must point at real local files.
+    const pack = toolJson<{
+      routes: Array<{
+        route: string;
+        screenshot: string | null;
+        css: string | null;
+        aria: string | null;
+      }>;
+      totals: { routes: number };
+    }>(
+      await client.callTool({
+        name: 'opre.get_reference_pack',
+        arguments: { project, maxRoutes: 2 },
+      }),
+    );
+    expect(pack.totals.routes).toBeGreaterThan(0);
+    const root = pack.routes[0]!;
+    expect(root.screenshot).toMatch(/artifacts[\\/]screenshots[\\/].*\.png$/);
+    await expect(readFile(root.screenshot!, 'utf8').catch(() => null)).resolves.not.toBeNull();
+
+    // Assets are downloaded, deduped and manifested per route.
+    const assets = toolJson<{
+      assetsFound: number;
+      downloaded: number;
+      manifests: string[];
+      blocked: Array<{ url: string; reason: string }>;
+    }>(
+      await client.callTool({ name: 'opre.capture_assets', arguments: { project, maxRoutes: 2 } }),
+    );
+    expect(assets.assetsFound).toBeGreaterThan(0);
+    expect(assets.downloaded).toBeGreaterThan(0);
+    expect(assets.manifests.length).toBeGreaterThan(0);
+    const manifest = JSON.parse(
+      await readFile(created.root + '/' + assets.manifests[0]!, 'utf8'),
+    ) as {
+      assets: Array<{
+        url: string;
+        localPath: string | null;
+        status: string;
+        kind: string;
+        alt: string | null;
+      }>;
+    };
+    const logo = manifest.assets.find((asset) => asset.url.endsWith('/logo.png'));
+    expect(logo).toBeDefined();
+    expect(logo!.status).toBe('ok');
+    expect(logo!.kind).toBe('image');
+    // Alt text is captured so the rebuild keeps the accessibility tree.
+    expect(logo!.alt).toBe('Acme');
+    expect(manifest.assets.some((asset) => asset.status === 'ok' && asset.localPath !== null)).toBe(
+      true,
+    );
+
+    // The scaffold is runnable, links the captured stylesheet and points <img> at
+    // a real copied file rather than an empty src.
+    const scaffold = toolJson<{
+      routes: string[];
+      files: string[];
+      assetsLinked: number;
+      stylesheets: number;
+    }>(await client.callTool({ name: 'opre.scaffold_app', arguments: { project } }));
+    expect(scaffold.routes.length).toBeGreaterThan(0);
+    expect(scaffold.files).toContain('server.js');
+    expect(scaffold.stylesheets).toBeGreaterThan(0);
+    expect(scaffold.assetsLinked).toBeGreaterThan(0);
+
+    const entry = await readFile(join(created.root, 'app', 'index.html'), 'utf8');
+    expect(entry).toContain('<!doctype html>');
+    expect(entry).toMatch(/<nav>|<main>|<header>/);
+    const href = /<link rel="stylesheet" href="(styles\/[^"]+)">/.exec(entry)?.[1];
+    expect(href).toBeDefined();
+    // The linked stylesheet must exist on disk — a link to a file that was never
+    // written silently produced an unstyled rebuild.
+    const css = await readFile(join(created.root, 'app', href!), 'utf8');
+    expect(css).toContain('--brand');
+    // url(...) must point at the localised copy, not back at the live target,
+    // or the scaffold renders unstyled once it is served from another origin.
+    expect(css).not.toContain('url("/logo.png")');
+    expect(css).toMatch(/url\("\.\.\/assets\/root\/[^"]+\.png"\)/);
+    const src = /<img alt="Acme" src="([^"]+)"/.exec(entry)?.[1];
+    expect(src).toBeDefined();
+    expect(src).not.toBe('');
+    // The copied file must be the real PNG bytes, not an empty placeholder.
+    const copied = await readFile(join(created.root, 'app', ...src!.split('/')));
+    expect(copied.byteLength).toBeGreaterThan(0);
+    expect(copied.subarray(1, 4).toString('latin1')).toBe('PNG');
+    await expect(readFile(join(created.root, 'app', 'routes.json'), 'utf8')).resolves.toContain(
+      '/',
+    );
+  });
+
+  it('refuses to scaffold without a recorded authorisation', async () => {
+    const created = toolJson<{ project: string }>(
+      await client.callTool({
+        name: 'opre.create_project',
+        arguments: { target: site.origin, targetType: 'web', name: 'unauthorised' },
+      }),
+    );
+    await client.callTool({
+      name: 'opre.start_research',
+      arguments: { project: created.project, maxPages: 1, maxDepth: 0, includeScreenshots: false },
+    });
+    const result = (await client.callTool({
+      name: 'opre.scaffold_app',
+      arguments: { project: created.project },
+    })) as { isError?: boolean; content: Array<{ text: string }> };
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text).toContain('security_blocked');
+  });
+
+  it('does not overwrite an existing app directory without force', async () => {
+    const created = toolJson<{ project: string; root: string }>(
+      await client.callTool({
+        name: 'opre.create_project',
+        arguments: {
+          target: site.origin,
+          targetType: 'web',
+          name: 'scaffold-guard',
+          authorisation: 'I own this test site',
+        },
+      }),
+    );
+    await client.callTool({
+      name: 'opre.start_research',
+      arguments: { project: created.project, maxPages: 1, maxDepth: 0, includeScreenshots: false },
+    });
+    await mkdir(join(created.root, 'app'), { recursive: true });
+    await writeFile(join(created.root, 'app', 'my-work.txt'), 'keep me', 'utf8');
+
+    const refused = (await client.callTool({
+      name: 'opre.scaffold_app',
+      arguments: { project: created.project },
+    })) as { isError?: boolean; content: Array<{ text: string }> };
+    expect(refused.isError).toBe(true);
+    await expect(readFile(join(created.root, 'app', 'my-work.txt'), 'utf8')).resolves.toBe(
+      'keep me',
+    );
+  });
+
   it('returns structured errors instead of crashing', async () => {
     const result = (await client.callTool({
       name: 'opre.get_feature',
@@ -502,7 +664,7 @@ describe('MCP server (in-memory transport)', () => {
     const project = projects.projects[0]!.name;
     const result = (await client.callTool({
       name: 'opre.run_validation',
-      arguments: { project, command: 'rm', args: ['-rf', 'generated-app'] },
+      arguments: { project, command: 'rm', args: ['-rf', 'app'] },
     })) as { isError?: boolean; content: Array<{ text: string }> };
     expect(result.isError).toBe(true);
     expect(result.content[0]!.text).toContain('security_blocked');

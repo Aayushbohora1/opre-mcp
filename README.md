@@ -370,6 +370,5 @@ Stated plainly, and also returned by the tools themselves:
 
 ## License
 
-Apache-2.0 — see [LICENSE](./LICENSE). Respect the licenses of third-party dependencies and of
-any project you analyse; do not copy proprietary source into generated projects without
-authorisation.
+MIT — see [LICENSE](./LICENSE). Respect the licenses of third-party dependencies and of any project
+you analyse; do not copy proprietary source into generated projects without authorisation.

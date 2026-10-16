@@ -63,5 +63,4 @@ public issues.
 
 ## License
 
-By contributing you agree that your work is licensed under the Apache-2.0 license of this
-repository.
+By contributing you agree that your work is licensed under the MIT license of this repository.

@@ -2,6 +2,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { copyFor } from './catalog.js';
 import type { OpreConfig } from '../config.js';
 import { searchKnowledge } from '../knowledge/search.js';
 import { researchWebsite } from '../research/inspector.js';
@@ -39,9 +40,8 @@ export function registerResearchTools(server: McpServer, config: OpreConfig): vo
   server.registerTool(
     'opre.start_research',
     {
-      title: 'Research the target',
-      description:
-        'Inspects the authorised target with a real browser: page inventory, navigation, forms, interactive elements, metadata, responsive viewports, screenshots, console errors and failed requests. Every observation is stored as a finding with provenance and limitations. Use it before planning.',
+      title: copyFor('opre.start_research').title,
+      description: copyFor('opre.start_research').description,
       inputSchema: {
         project: projectParam,
         maxPages: z
@@ -140,6 +140,7 @@ export function registerResearchTools(server: McpServer, config: OpreConfig): vo
           {
             maxPages: clamp(argNumber(record, 'maxPages') ?? config.research.maxPages, 1, 500),
             maxDepth: clamp(argNumber(record, 'maxDepth') ?? config.research.maxDepth, 0, 10),
+            concurrency: config.research.concurrency,
             timeoutMs: config.research.timeoutMs,
             maxLinksPerPage: config.research.maxLinksPerPage,
             includeScreenshots:
@@ -224,9 +225,8 @@ export function registerResearchTools(server: McpServer, config: OpreConfig): vo
   server.registerTool(
     'opre.get_research_summary',
     {
-      title: 'Summarise research',
-      description:
-        'Compact overview of what research collected: run limits, route inventory, finding counts by kind/verification, technology signals and explicit gaps. Use it after opre.start_research instead of loading the raw corpus.',
+      title: copyFor('opre.get_research_summary').title,
+      description: copyFor('opre.get_research_summary').description,
       inputSchema: {
         project: projectParam,
         maxFindings: z
@@ -301,9 +301,8 @@ export function registerResearchTools(server: McpServer, config: OpreConfig): vo
   server.registerTool(
     'opre.search_research',
     {
-      title: 'Search research records',
-      description:
-        'Full-text search across researched pages, findings, evidence and technologies. Returns ranked, bounded hits with ids so you can fetch exact records instead of the whole corpus.',
+      title: copyFor('opre.search_research').title,
+      description: copyFor('opre.search_research').description,
       inputSchema: {
         project: projectParam,
         query: z
@@ -354,9 +353,8 @@ export function registerResearchTools(server: McpServer, config: OpreConfig): vo
   server.registerTool(
     'opre.add_finding',
     {
-      title: 'Record a finding',
-      description:
-        'Stores a research conclusion (observed, derived or hypothesis) with confidence, verification status, optional evidence, workflow reference and limitations. Use it when you learn something the crawler could not observe.',
+      title: copyFor('opre.add_finding').title,
+      description: copyFor('opre.add_finding').description,
       inputSchema: {
         project: projectParam,
         statement: z.string().describe('The finding, stated so someone else can check it.'),

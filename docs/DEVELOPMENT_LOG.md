@@ -5,6 +5,53 @@ first. "Verified" means exercised by an automated test, not merely compiled.
 
 ---
 
+## Post-Milestone — usability, performance, project layout — **verified**
+
+### Project layout (`refactor: modernise the project layout`)
+
+- Directories are named by a readable slug (`example-com`, `example-com-2` on collision); the
+  unique id stays in `opre.json`.
+- Renames: `research/overview.md → research/report.md`,
+  `planning/implementation-plan.md → planning/plan.md`,
+  `validation/test-results.json → validation/runs.json`, `generated-app/ → app/`.
+- New `src/project/index-document.ts` generates the project `README.md` (stage, progress, next task,
+  layout map) inside the existing generated markers, refreshed on create/research/plan/build/
+  validation. `deriveStage()` is now the single source of truth for the project stage, shared with
+  `opre.get_project_status`.
+
+### Tool surface (`feat: guide tool + single-source tool copy`)
+
+- `src/tools/catalog.ts` is the one owner of every tool title and description, written to a fixed
+  shape (purpose → when to reach for it → what it returns → what it will not do) and kept short,
+  because a longer description is paid on every turn.
+- New `opre.get_guide` (25th tool): returns the stage, counts, the exact next 1-4 tool calls with
+  example arguments, the guardrails that matter now, the unknowns that must be stated, and a map of
+  where each artefact lives. Sized under 3 kB and asserted as such.
+- Server `instructions` rewritten as a short playbook that points at `opre.get_guide`.
+
+### Performance (measured, `npm run bench`)
+
+| Operation | Before | After |
+| --- | --- | --- |
+| cold start → first tool list | 604 ms | ~290-300 ms |
+| research, 4 pages, concurrency 3 | 3.84 s | 2.65 s |
+
+- Playwright is imported lazily in `src/research/browser.ts`; most tool calls never need a browser.
+- Page inspection runs concurrently (`OPRE_RESEARCH_CONCURRENCY`, default 3) while results are
+  recorded in frontier order, so runs stay deterministic.
+- Measurements use a local multi-route fixture site, not a third-party site.
+
+### Bug found and fixed by measuring
+
+Running OPRE **from source** (`npm run dev`, tsx) broke research: the bundler rewrites
+`page.evaluate` callbacks with helpers such as `__name`, which do not exist in the page, so every
+page after the first failed with `ReferenceError: __name is not defined`. The built server was
+unaffected, which is why the integration tests missed it. `installTransformShim()` now injects the
+helpers as a **string** init script, and `tests/e2e/stdio.test.ts` drives the source entry point
+over stdio to keep it fixed.
+
+---
+
 ## Milestone 6 — `/opreapp` (authorised package inspection) — **verified**
 
 - `src/research/app/zip.ts` — dependency-free ZIP central-directory reader (stored + deflate),

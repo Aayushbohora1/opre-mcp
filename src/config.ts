@@ -22,6 +22,8 @@ export interface OpreConfig {
   research: {
     maxPages: number;
     maxDepth: number;
+    /** Pages inspected concurrently. Higher is faster but heavier on the target. */
+    concurrency: number;
     timeoutMs: number;
     maxLinksPerPage: number;
     viewports: Array<{ name: string; width: number; height: number }>;
@@ -68,6 +70,7 @@ export function loadConfig(env: Env = process.env): OpreConfig {
     research: {
       maxPages: readInt(env, 'OPRE_RESEARCH_MAX_PAGES', 25, 1, 500),
       maxDepth: readInt(env, 'OPRE_RESEARCH_MAX_DEPTH', 2, 0, 10),
+      concurrency: readInt(env, 'OPRE_RESEARCH_CONCURRENCY', 3, 1, 8),
       timeoutMs: readInt(env, 'OPRE_RESEARCH_TIMEOUT_MS', 30_000, 1_000, 600_000),
       maxLinksPerPage: readInt(env, 'OPRE_RESEARCH_MAX_LINKS', 100, 1, 2_000),
       viewports: parseViewports(env.OPRE_RESEARCH_VIEWPORTS),

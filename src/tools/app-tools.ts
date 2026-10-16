@@ -2,6 +2,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { copyFor } from './catalog.js';
 import type { OpreConfig } from '../config.js';
 import { SecurityError } from '../core/errors.js';
 import { writeResearchReports } from '../research/report.js';
@@ -17,9 +18,8 @@ export function registerAppTools(server: McpServer, config: OpreConfig): void {
   server.registerTool(
     'opre.inspect_app_package',
     {
-      title: 'Inspect an application package',
-      description:
-        'Static, authorised inspection of a local .apk/.ipa/.zip: archive structure, declared Android permissions and components, resource names, and DEX identifier/endpoint literals. It recovers declared strings only — no logic, no server behaviour — and every result records that limitation. Requires a project with targetType "app" and recorded authorisation.',
+      title: copyFor('opre.inspect_app_package').title,
+      description: copyFor('opre.inspect_app_package').description,
       inputSchema: {
         project: z.string().describe('Project name or id (must have targetType "app").'),
         packagePath: z

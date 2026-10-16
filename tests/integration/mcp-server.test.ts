@@ -329,6 +329,69 @@ describe('MCP server (in-memory transport)', () => {
     expect(regenerated.match(/opre:generated:begin/g)).toHaveLength(1);
   });
 
+  it('exposes a stage-aware guide with concrete next steps', async () => {
+    const created = toolJson<{ project: string }>(
+      await client.callTool({
+        name: 'opre.create_project',
+        arguments: {
+          target: 'https://guide-check.example',
+          targetType: 'web',
+          name: 'guide-check',
+        },
+      }),
+    );
+
+    const before = toolJson<{
+      stage: string;
+      steps: Array<{ tool: string; example: Record<string, unknown> }>;
+      guardrails: string[];
+      unknownsYouMustState: string[];
+      whereThingsLive: Record<string, string>;
+    }>(await client.callTool({ name: 'opre.get_guide', arguments: { project: created.project } }));
+
+    expect(before.stage).toBe('research');
+    expect(before.steps.map((step) => step.tool)).toContain('opre.start_research');
+    expect(before.steps[0]?.example['project']).toBe(created.project);
+    expect(
+      before.guardrails.some(
+        (rule) => rule.includes('UNTRUSTED EVIDENCE') || rule.includes('evidence'),
+      ),
+    ).toBe(true);
+    expect(before.unknownsYouMustState.length).toBeGreaterThan(0);
+    expect(before.whereThingsLive['rebuilt app']).toBe('app/');
+    // The guide must stay small: it is called at the start of every session.
+    expect(JSON.stringify(before).length).toBeLessThan(3_000);
+
+    await client.callTool({
+      name: 'opre.create_implementation_plan',
+      arguments: { project: created.project, goal: 'Rebuild the site.', mode: 'draft' },
+    });
+
+    const after = toolJson<{ stage: string; steps: Array<{ tool: string }> }>(
+      await client.callTool({ name: 'opre.get_guide', arguments: { project: created.project } }),
+    );
+    expect(after.stage).toBe('building');
+    expect(after.steps.map((step) => step.tool)).toEqual([
+      'opre.get_next_task',
+      'opre.prepare_build_context',
+      'opre.record_implementation_result',
+      'opre.run_validation',
+    ]);
+  });
+
+  it('gives every tool a title and a description that says when to use it', async () => {
+    const { tools } = await client.listTools();
+    expect(tools).toHaveLength(25);
+    for (const tool of tools) {
+      expect(tool.title ?? '').not.toBe('');
+      const description = tool.description ?? '';
+      expect(description.length).toBeGreaterThan(40);
+      expect(description.length).toBeLessThan(700);
+    }
+    const guide = tools.find((tool) => tool.name === 'opre.get_guide');
+    expect(guide?.description).toContain('stage-aware playbook');
+  });
+
   it('returns structured errors instead of crashing', async () => {
     const result = (await client.callTool({
       name: 'opre.get_feature',

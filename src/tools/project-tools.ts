@@ -2,6 +2,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { copyFor } from './catalog.js';
 import { readFeatures } from '../knowledge/store.js';
 import { readFindings, readPages } from '../research/store.js';
 import { readRuns } from '../validation/store.js';
@@ -30,9 +31,8 @@ export function registerProjectTools(server: McpServer, config: OpreConfig): voi
   server.registerTool(
     'opre.create_project',
     {
-      title: 'Create an OPRE project',
-      description:
-        'Creates an isolated, persistent project directory (research/, knowledge/, planning/, artifacts/, validation/, app/) for a website or application target. Call this first; every other OPRE tool needs a project.',
+      title: copyFor('opre.create_project').title,
+      description: copyFor('opre.create_project').description,
       inputSchema: {
         target: z
           .string()
@@ -159,9 +159,8 @@ export function registerProjectTools(server: McpServer, config: OpreConfig): voi
   server.registerTool(
     'opre.list_projects',
     {
-      title: 'List OPRE projects',
-      description:
-        'Lists every project under OPRE_HOME with its target and identifiers. Use it to discover project names when a tool call needs one.',
+      title: copyFor('opre.list_projects').title,
+      description: copyFor('opre.list_projects').description,
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
@@ -201,9 +200,8 @@ export function registerProjectTools(server: McpServer, config: OpreConfig): voi
   server.registerTool(
     'opre.get_project_status',
     {
-      title: 'Get project status',
-      description:
-        'Compact snapshot of a project: manifest, research counts, feature and task progress, validation state and the next recommended action. Safe to call at any time; it never returns the whole knowledge base.',
+      title: copyFor('opre.get_project_status').title,
+      description: copyFor('opre.get_project_status').description,
       inputSchema: { project: projectParam },
       annotations: { readOnlyHint: true },
     },
@@ -278,9 +276,8 @@ export function registerProjectTools(server: McpServer, config: OpreConfig): voi
   server.registerTool(
     'opre.update_project_config',
     {
-      title: 'Update project configuration',
-      description:
-        'Updates project-level settings: dev-server command/args/port, app directory, allowed hosts, package-inspection authorisation and validation attempt limits. Use it before opre.run_validation so OPRE can start the generated app safely.',
+      title: copyFor('opre.update_project_config').title,
+      description: copyFor('opre.update_project_config').description,
       inputSchema: {
         project: z.string().describe('Project name or id.'),
         runnerCommand: z

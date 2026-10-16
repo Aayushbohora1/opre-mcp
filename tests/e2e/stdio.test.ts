@@ -1,4 +1,6 @@
 import { mkdtemp, rm } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -45,7 +47,7 @@ describe('stdio transport (built server)', () => {
       arguments: { target: 'https://example.com', targetType: 'web', authorisation: 'public site' },
     })) as { content: Array<{ text: string }> };
     const payload = JSON.parse(created.content[0]!.text) as { project: string };
-    expect(payload.project).toMatch(/^example-com-[0-9a-f]{8}$/);
+    expect(payload.project).toBe('example-com');
 
     const status = (await client.callTool({
       name: 'opre.get_project_status',
@@ -66,4 +68,84 @@ describe('stdio transport (built server)', () => {
     });
     expect(JSON.stringify(prompt.messages)).toContain('opre.run_validation');
   });
+});
+
+describe('source mode (npm run dev, tsx)', () => {
+  /**
+   * Regression test: running OPRE from TypeScript source makes the bundler rewrite
+   * `page.evaluate` callbacks, which used to fail with
+   * "ReferenceError: __name is not defined" and silently drop every page after
+   * the first. This drives the *source* entry point to keep that fixed.
+   */
+  it('researches a multi-page site without transform errors', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'opre-e2e-src-'));
+    const server = createServer((request, response) => {
+      const path = new URL(request.url ?? '/', 'http://localhost').pathname;
+      response.writeHead(200, { 'content-type': 'text/html' });
+      if (path === '/') {
+        response.end(
+          '<!doctype html><title>Src home</title><h1>Home</h1><nav>' +
+            [1, 2, 3].map((index) => `<a href="/section-${index}">Section ${index}</a>`).join('') +
+            '</nav>',
+        );
+        return;
+      }
+      response.end(`<!doctype html><title>Src ${path}</title><h1>${path}</h1><a href="/">Home</a>`);
+    });
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    const port = (server.address() as AddressInfo).port;
+
+    const client = new Client({ name: 'opre-e2e-source', version: '1.0.0' });
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [
+        fileURLToPath(new URL('../../node_modules/tsx/dist/cli.mjs', import.meta.url)),
+        fileURLToPath(new URL('../../src/index.ts', import.meta.url)),
+      ],
+      env: {
+        ...process.env,
+        OPRE_HOME: home,
+        OPRE_ALLOW_PRIVATE_NETWORK: 'true',
+        OPRE_RESEARCH_SCREENSHOTS: 'false',
+      },
+      stderr: 'pipe',
+    });
+
+    try {
+      await client.connect(transport);
+      const created = (await client.callTool({
+        name: 'opre.create_project',
+        arguments: {
+          target: `http://127.0.0.1:${port}/`,
+          targetType: 'web',
+          authorisation: 'local fixture',
+        },
+      })) as { content: Array<{ text: string }> };
+      const project = (JSON.parse(created.content[0]!.text) as { project: string }).project;
+
+      const research = (await client.callTool({
+        name: 'opre.start_research',
+        arguments: { project, maxPages: 4, maxDepth: 1, includeScreenshots: false },
+      })) as { content: Array<{ text: string }> };
+      const payload = JSON.parse(research.content[0]!.text) as {
+        pagesVisited: number;
+        errors: string[];
+        routes: Array<{ url: string }>;
+      };
+
+      expect(payload.errors).toEqual([]);
+      expect(payload.pagesVisited).toBeGreaterThan(1);
+      expect(payload.routes.map((route) => route.url)).toEqual(
+        expect.arrayContaining([`http://127.0.0.1:${port}/`, `http://127.0.0.1:${port}/section-1`]),
+      );
+    } finally {
+      await client.close();
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+      await rm(home, { recursive: true, force: true });
+    }
+  }, 120_000);
 });

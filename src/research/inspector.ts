@@ -21,7 +21,7 @@ import type { ProjectManifest } from '../project/types.js';
 import { resolveInside } from '../security/paths.js';
 import { scanForInjection } from '../security/untrusted.js';
 import { hostMatches, isLoopbackHost, parseUrl } from '../security/url.js';
-import { createContext, launchBrowser } from './browser.js';
+import { createContext, installTransformShim, launchBrowser } from './browser.js';
 import { newPageRecord, newSourceRecord } from './store.js';
 import type { FindingRecord, PageRecord, SourceRecord } from './types.js';
 
@@ -32,6 +32,8 @@ export interface ResearchProgress {
 export interface CrawlOptions {
   maxPages: number;
   maxDepth: number;
+  /** How many pages to inspect at once. */
+  concurrency: number;
   timeoutMs: number;
   maxLinksPerPage: number;
   includeScreenshots: boolean;
@@ -148,20 +150,51 @@ export async function researchWebsite(
 
   try {
     let maxDepthReached = 0;
+    // Pages are inspected concurrently but recorded in frontier order, so runs
+    // stay deterministic and reproducible for the same target and limits.
     while (frontier.length > 0 && pages.length < options.maxPages) {
-      const item = frontier.shift();
-      if (item === undefined) {
+      const batch: FrontierItem[] = [];
+      while (frontier.length > 0 && batch.length < options.concurrency) {
+        const item = frontier.shift();
+        if (item === undefined) {
+          break;
+        }
+        if (visited.has(item.url) || item.depth > options.maxDepth) {
+          continue;
+        }
+        visited.add(item.url);
+        batch.push(item);
+      }
+      if (batch.length === 0) {
         break;
       }
-      if (visited.has(item.url) || item.depth > options.maxDepth) {
-        continue;
-      }
-      visited.add(item.url);
-      maxDepthReached = Math.max(maxDepthReached, item.depth);
+      maxDepthReached = Math.max(maxDepthReached, ...batch.map((item) => item.depth));
 
-      await progress.report(`Inspecting ${item.url}`, pages.length, options.maxPages);
-      try {
-        const result = await inspectPage(context, item, options, config, paths);
+      await progress.report(
+        `Inspecting ${batch.length} page(s): ${batch.map((item) => item.url).join(', ')}`,
+        pages.length,
+        options.maxPages,
+      );
+
+      const settled = await Promise.all(
+        batch.map(async (item) => {
+          try {
+            return await inspectPage(context, item, options, config, paths);
+          } catch (error) {
+            return {
+              failure: `${item.url}: ${error instanceof Error ? error.message : String(error)}`,
+            };
+          }
+        }),
+      );
+
+      for (const [index, outcome] of settled.entries()) {
+        const item = batch[index]!;
+        if ('failure' in outcome) {
+          errors.push(outcome.failure);
+          continue;
+        }
+        const result = outcome;
         pages.push(result.page);
         sources.push(result.source);
         findings.push(...result.findings);
@@ -173,8 +206,6 @@ export async function researchWebsite(
         for (const link of result.discovered) {
           frontier.push({ url: link.url, depth: item.depth + 1, discoveredFrom: item.url });
         }
-      } catch (error) {
-        errors.push(`${item.url}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
 
@@ -228,6 +259,7 @@ async function inspectPage(
   paths: ProjectPaths,
 ): Promise<InspectResult> {
   const page = await context.newPage();
+  await installTransformShim(page);
   const consoleErrors: string[] = [];
   const failedRequests: string[] = [];
   const blocked: string[] = [];

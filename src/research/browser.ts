@@ -1,12 +1,17 @@
 /**
  * Browser lifecycle for authorised research and validation.
  *
+ * Playwright is imported lazily: loading it costs a few hundred milliseconds of
+ * process start-up, and most tool calls never touch a browser. Keeping it out of
+ * the module graph makes `opre.create_project`, status and search calls cheap.
+ *
  * Launch order: explicit executable (`OPRE_BROWSER_EXECUTABLE`) → bundled
  * Chromium channel → default Playwright Chromium. Failures are surfaced as a
  * clear `unsupported_capability` error instead of an opaque stack trace.
  */
 
-import { chromium, type Browser, type BrowserContext } from 'playwright';
+import type { Browser, BrowserContext, Page } from 'playwright';
+import type { LaunchOptions } from 'playwright-core';
 import type { OpreConfig } from '../config.js';
 import { UnsupportedCapabilityError } from '../core/errors.js';
 
@@ -16,7 +21,8 @@ export interface LaunchedBrowser {
 }
 
 export async function launchBrowser(config: OpreConfig): Promise<LaunchedBrowser> {
-  const attempts: Array<{ label: string; options: Parameters<typeof chromium.launch>[0] }> = [];
+  const { chromium } = await import('playwright');
+  const attempts: Array<{ label: string; options: LaunchOptions }> = [];
 
   if (config.browser.executablePath !== null) {
     attempts.push({
@@ -78,4 +84,24 @@ export async function createContext(
       ? {}
       : { recordHar: { path: options.recordHar, content: 'omit' } }),
   });
+}
+
+/**
+ * Playwright serialises `page.evaluate` callbacks with `Function.prototype.toString()`.
+ * When OPRE runs from source (`npm run dev`, tsx) the bundler rewrites the
+ * callback and can wrap inner functions with helpers such as `__name`, which do
+ * not exist in the page — the evaluation then fails with
+ * `ReferenceError: __name is not defined`. Injecting the helper as a *string*
+ * (strings are never re-serialised) keeps source-mode and built-mode identical.
+ */
+export const TRANSFORM_HELPER_SHIM = [
+  'globalThis.__name = globalThis.__name || function (fn) { return fn; };',
+  'globalThis.__publicField = globalThis.__publicField || function (obj, key, value) {',
+  '  Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true });',
+  '  return value;',
+  '};',
+].join('\n');
+
+export async function installTransformShim(page: Page): Promise<void> {
+  await page.addInitScript({ content: TRANSFORM_HELPER_SHIM });
 }

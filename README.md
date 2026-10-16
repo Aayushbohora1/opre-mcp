@@ -2,24 +2,77 @@
 
 **Understand. Rebuild. Reimagine.**
 
-OPRE is an open-source, MCP-powered software research and reconstruction engine. It lets a
-compatible AI agent investigate an existing website or application, build an evidence-backed
-knowledge base, and then rebuild a working alternative through an incremental, test-driven loop.
+[![CI](https://github.com/Aayushbohora1/opre-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Aayushbohora1/opre-mcp/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![node](https://img.shields.io/badge/node-%E2%89%A520.10-5FA04E.svg)](https://nodejs.org)
+[![tools](https://img.shields.io/badge/MCP-25%20tools-8A2BE2.svg)](#tool-reference)
 
-- **Understand** — authorised browser inspection and static analysis that record _what was
-  observed_, with sources, timestamps, confidence and explicit limitations.
-- **Rebuild** — a dependency-ordered backlog, task-scoped context, and a local runner that
-  actually starts and exercises the generated app.
-- **Reimagine** — research a _capability_, not a screenshot. OPRE records observed facts,
-  source-derived facts and hypotheses separately so the agent never guesses silently.
+OPRE is an open-source **MCP server** that lets any compatible AI agent investigate an existing
+website or application, build an evidence-backed knowledge base, and then rebuild a working
+alternative through an incremental, test-driven loop.
 
-OPRE does **not** ship its own AI model. The connected agent reasons and writes code; OPRE
-provides research, persistent project state, retrieval, task coordination and validation.
+- **Understand** — a real browser and a static analyser record _what was observed_, with sources,
+  timestamps, confidence and explicit limitations.
+- **Rebuild** — a dependency-ordered backlog, task-scoped context, and a runner that actually
+  starts and exercises the generated app.
+- **Reimagine** — reconstruct a _capability_, not a screenshot. Observed facts, source-derived
+  facts and hypotheses are stored separately, so the agent never guesses silently.
+
+OPRE ships **no AI model of its own**. Your agent reasons and writes code; OPRE provides research,
+persistent project state, retrieval, task coordination and validation.
 
 ```
-agent (reasoning + codegen)  <──MCP tools──>  OPRE (research · knowledge · planning · validation)
-                                        └──>  project directory on disk (survives restarts)
+your agent (reasoning + code)  ──MCP──▶  OPRE  ──▶  project directory on disk
+                                     research · knowledge · planning · validation
 ```
+
+---
+
+## Try it in 60 seconds
+
+```bash
+git clone https://github.com/Aayushbohora1/opre-mcp.git
+cd opre-mcp
+npm install          # compiles dist/ automatically (prepare script)
+npm run demo         # drives the whole loop against https://example.com
+```
+
+`npm run demo` opens a real browser, records evidence, drafts a plan, and prints exactly what an
+agent would see at each step. It uses a throwaway project in a temp directory.
+
+Then connect it to your agent:
+
+```json
+{
+  "mcpServers": {
+    "opre": {
+      "command": "node",
+      "args": ["/absolute/path/to/opre-mcp/dist/index.js"],
+      "env": { "OPRE_HOME": "/absolute/path/to/opre-projects" }
+    }
+  }
+}
+```
+
+Your client will show **25 `opre.*` tools** and two prompts (`opreweb`, `opreapp`). The agent's
+first move should be `opre.get_guide`, which returns the exact next steps for the project.
+
+---
+
+## Why it is built this way
+
+| Problem with "just look at the screenshots"                | How OPRE answers it                                                                                                  |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Agents reload the whole project into context every session | Every response is size-bounded and paginated; state lives on disk, not in the conversation.                          |
+| Claims drift from reality                                  | Findings carry provenance, confidence and _limitations_; validation runs prove behaviour in a browser.               |
+| Targets can try to manipulate the agent                    | Captured content is stored as untrusted evidence, scanned for injected instructions, and never treated as a command. |
+| One giant code-generation pass                             | A dependency-aware backlog; the agent takes one task, implements it, records it, validates it.                       |
+| "It looks the same"                                        | Acceptance criteria are executable checks, with failures written back into the next iteration.                       |
+
+agent (reasoning + codegen) <──MCP tools──> OPRE (research · knowledge · planning · validation)
+└──> project directory on disk (survives restarts)
+
+````
 
 ---
 
@@ -59,7 +112,7 @@ cd opre-mcp
 npm install
 npm run build
 node dist/index.js --help
-```
+````
 
 During development you can run the server straight from TypeScript:
 
@@ -141,36 +194,41 @@ not observe.
 
 ## Tool reference
 
-| Tool                                | Purpose                                                                 |
-| ----------------------------------- | ----------------------------------------------------------------------- |
-| `opre.create_project`               | Create the persistent, isolated project directory.                      |
-| `opre.list_projects`                | Discover project names/ids.                                             |
-| `opre.get_project_status`           | Compact snapshot: stage, counts, progress, next action.                 |
-| `opre.update_project_config`        | Dev-server command/args/port, app dir, allowed hosts, attempt limits.   |
-| `opre.start_research`               | Browser inspection + optional search; writes evidence-backed findings.  |
-| `opre.get_research_summary`         | Bounded research overview and explicit unknowns.                        |
-| `opre.search_research`              | Ranked search over pages and findings.                                  |
-| `opre.add_finding`                  | Record an observed/derived/hypothesis conclusion with limitations.      |
-| `opre.search_knowledge`             | Bounded search across features, findings, evidence, pages, tasks, docs. |
-| `opre.get_feature`                  | One feature with criteria, findings, evidence and tasks.                |
-| `opre.upsert_feature`               | Create/update a feature record.                                         |
-| `opre.get_evidence`                 | The observations behind findings.                                       |
-| `opre.get_document_excerpt`         | Line-bounded excerpt of a project document.                             |
-| `opre.record_note`                  | Append a requirement, decision, uncertainty or workflow note.           |
-| `opre.create_implementation_plan`   | Draft or apply the feature/task plan.                                   |
-| `opre.list_tasks`                   | Paginated backlog with blocked reasons.                                 |
-| `opre.get_next_task`                | Highest-priority actionable task.                                       |
-| `opre.upsert_task`                  | Create/update one task and its checks.                                  |
-| `opre.update_task_status`           | Move a task through its lifecycle.                                      |
-| `opre.prepare_build_context`        | Everything needed for one task, within a character budget.              |
-| `opre.record_implementation_result` | Persist what was built, what passed, what is still missing.             |
-| `opre.run_validation`               | Start/reuse the local server and run browser acceptance checks.         |
-| `opre.get_validation_report`        | Validation history, failures per task, open gaps.                       |
-| `opre.inspect_app_package`          | Authorised static inspection of an application package.                 |
+Every tool has a short title and a description that says _when to use it and what it returns_.
+The same copy lives in [`src/tools/catalog.ts`](./src/tools/catalog.ts) — the single owner of the
+agent-facing surface.
 
-Unsupported capabilities are never faked: tools return a structured
-`unsupported_capability` error with an actionable hint (for example, no web-search provider
-configured, or no Chromium available).
+| Tool                                | Title                      | Use it to                                                            |
+| ----------------------------------- | -------------------------- | -------------------------------------------------------------------- |
+| `opre.create_project`               | Start a project            | Create the isolated workspace for a target.                          |
+| `opre.get_guide`                    | What to do next            | Get the stage-aware playbook with example arguments. **Start here.** |
+| `opre.list_projects`                | List projects              | Discover project names/ids.                                          |
+| `opre.get_project_status`           | Project status             | See stage, counts, progress, next action.                            |
+| `opre.update_project_config`        | Project settings           | Configure the dev server, app dir, allowed hosts, attempt limits.    |
+| `opre.start_research`               | Research the target        | Observe the real site in a browser and store evidence.               |
+| `opre.get_research_summary`         | Research summary           | Read a bounded overview and the explicit unknowns.                   |
+| `opre.search_research`              | Search research            | Ranked search over pages and findings.                               |
+| `opre.add_finding`                  | Record a finding           | Store an observed/derived/hypothesis conclusion with limitations.    |
+| `opre.search_knowledge`             | Search the knowledge base  | Bounded, paginated search across everything known.                   |
+| `opre.get_feature`                  | Get a feature              | Read one feature with criteria, evidence and tasks.                  |
+| `opre.upsert_feature`               | Create or update a feature | Write a feature record.                                              |
+| `opre.get_evidence`                 | Get evidence               | Check the observations behind a claim.                               |
+| `opre.get_document_excerpt`         | Read a document            | Excerpt one project document, paginated.                             |
+| `opre.record_note`                  | Record a note              | Append a requirement, decision, uncertainty or workflow.             |
+| `opre.create_implementation_plan`   | Plan the build             | Turn research into features and ordered tasks.                       |
+| `opre.list_tasks`                   | List tasks                 | Review the backlog and what is blocked.                              |
+| `opre.get_next_task`                | Next task                  | Take the highest-priority actionable task.                           |
+| `opre.upsert_task`                  | Create or update a task    | Write one task and its browser checks.                               |
+| `opre.update_task_status`           | Update task status         | Move a task through its lifecycle.                                   |
+| `opre.prepare_build_context`        | Prepare build context      | Get everything one task needs, within budget.                        |
+| `opre.record_implementation_result` | Record the result          | Store what was built, what passed, what is missing.                  |
+| `opre.run_validation`               | Run validation             | Start the app and run acceptance checks in a browser.                |
+| `opre.get_validation_report`        | Validation report          | See run history, failures per task, open gaps.                       |
+| `opre.inspect_app_package`          | Inspect an app package     | Authorised static analysis of an `.apk`/`.ipa`/`.zip`.               |
+
+Unsupported capabilities are never faked: tools return a structured `unsupported_capability`
+error with an actionable hint (for example, no web-search provider configured, or no Chromium
+available).
 
 ---
 
@@ -218,33 +276,34 @@ Regenerated markdown (`README.md`, `research/report.md`, `research/architecture.
 All configuration is environment-based, validated at startup, and printed by
 `node dist/index.js --print-config`.
 
-| Variable                       | Default                           | Purpose                                                     |
-| ------------------------------ | --------------------------------- | ----------------------------------------------------------- |
-| `OPRE_HOME`                    | `~/.opre`                         | Directory that contains all projects. Must be absolute.     |
-| `OPRE_MAX_RESPONSE_CHARS`      | `24000`                           | Hard ceiling for one tool response, in characters.          |
-| `OPRE_MAX_ITEMS`               | `25`                              | Default page size for retrieval tools.                      |
-| `OPRE_RESEARCH_MAX_PAGES`      | `25`                              | Page cap per research run.                                  |
-| `OPRE_RESEARCH_MAX_DEPTH`      | `2`                               | Link depth per research run.                                |
-| `OPRE_RESEARCH_TIMEOUT_MS`     | `30000`                           | Per-navigation timeout.                                     |
-| `OPRE_RESEARCH_MAX_LINKS`      | `100`                             | Links captured per page.                                    |
-| `OPRE_RESEARCH_VIEWPORTS`      | `desktop:1440x900;mobile:390x844` | Viewport list for responsive capture.                       |
-| `OPRE_RESEARCH_SCREENSHOTS`    | `true`                            | Capture a screenshot per visited page.                      |
-| `OPRE_RESEARCH_HAR`            | `false`                           | Record a HAR file into `artifacts/reports/`.                |
-| `OPRE_USER_AGENT`              | OPRE bot UA                       | User agent used by the research/validation browser.         |
-| `OPRE_WEB_SEARCH_PROVIDER`     | `none`                            | `none` or `searxng`. No provider ⇒ no search results, ever. |
-| `OPRE_SEARXNG_URL`             | –                                 | Base URL of a SearXNG instance with JSON output enabled.    |
-| `OPRE_SEARCH_MAX_RESULTS`      | `8`                               | Results kept per search query.                              |
-| `OPRE_SEARCH_TIMEOUT_MS`       | `20000`                           | Search timeout.                                             |
-| `OPRE_BROWSER_EXECUTABLE`      | –                                 | Path to an existing Chromium/Chrome binary.                 |
-| `OPRE_BROWSER_HEADLESS`        | `true`                            | Run the browser headless.                                   |
-| `OPRE_ALLOW_PRIVATE_NETWORK`   | `false`                           | Allow targets that resolve to private/loopback addresses.   |
-| `OPRE_MAX_DOWNLOAD_BYTES`      | `25000000`                        | Size ceiling for package inspection inputs.                 |
-| `OPRE_RUNNER_ENABLED`          | `true`                            | Master switch for starting the generated app.               |
-| `OPRE_DEFAULT_PORT`            | `4173`                            | Port used when the project does not set one.                |
-| `OPRE_SERVER_START_TIMEOUT_MS` | `60000`                           | How long to wait for the dev server.                        |
-| `OPRE_VALIDATION_TIMEOUT_MS`   | `30000`                           | Per-check browser timeout.                                  |
-| `OPRE_MAX_VALIDATION_ATTEMPTS` | `3`                               | Retries per task before the loop stops.                     |
-| `OPRE_LOG_LEVEL`               | `error`                           | `silent`, `error`, `warn`, `info` (stderr only).            |
+| Variable                       | Default                           | Purpose                                                         |
+| ------------------------------ | --------------------------------- | --------------------------------------------------------------- |
+| `OPRE_HOME`                    | `~/.opre`                         | Directory that contains all projects. Must be absolute.         |
+| `OPRE_MAX_RESPONSE_CHARS`      | `24000`                           | Hard ceiling for one tool response, in characters.              |
+| `OPRE_MAX_ITEMS`               | `25`                              | Default page size for retrieval tools.                          |
+| `OPRE_RESEARCH_MAX_PAGES`      | `25`                              | Page cap per research run.                                      |
+| `OPRE_RESEARCH_MAX_DEPTH`      | `2`                               | Link depth per research run.                                    |
+| `OPRE_RESEARCH_CONCURRENCY`    | `3`                               | Pages inspected at once. Raise for speed, lower for politeness. |
+| `OPRE_RESEARCH_TIMEOUT_MS`     | `30000`                           | Per-navigation timeout.                                         |
+| `OPRE_RESEARCH_MAX_LINKS`      | `100`                             | Links captured per page.                                        |
+| `OPRE_RESEARCH_VIEWPORTS`      | `desktop:1440x900;mobile:390x844` | Viewport list for responsive capture.                           |
+| `OPRE_RESEARCH_SCREENSHOTS`    | `true`                            | Capture a screenshot per visited page.                          |
+| `OPRE_RESEARCH_HAR`            | `false`                           | Record a HAR file into `artifacts/reports/`.                    |
+| `OPRE_USER_AGENT`              | OPRE bot UA                       | User agent used by the research/validation browser.             |
+| `OPRE_WEB_SEARCH_PROVIDER`     | `none`                            | `none` or `searxng`. No provider ⇒ no search results, ever.     |
+| `OPRE_SEARXNG_URL`             | –                                 | Base URL of a SearXNG instance with JSON output enabled.        |
+| `OPRE_SEARCH_MAX_RESULTS`      | `8`                               | Results kept per search query.                                  |
+| `OPRE_SEARCH_TIMEOUT_MS`       | `20000`                           | Search timeout.                                                 |
+| `OPRE_BROWSER_EXECUTABLE`      | –                                 | Path to an existing Chromium/Chrome binary.                     |
+| `OPRE_BROWSER_HEADLESS`        | `true`                            | Run the browser headless.                                       |
+| `OPRE_ALLOW_PRIVATE_NETWORK`   | `false`                           | Allow targets that resolve to private/loopback addresses.       |
+| `OPRE_MAX_DOWNLOAD_BYTES`      | `25000000`                        | Size ceiling for package inspection inputs.                     |
+| `OPRE_RUNNER_ENABLED`          | `true`                            | Master switch for starting the generated app.                   |
+| `OPRE_DEFAULT_PORT`            | `4173`                            | Port used when the project does not set one.                    |
+| `OPRE_SERVER_START_TIMEOUT_MS` | `60000`                           | How long to wait for the dev server.                            |
+| `OPRE_VALIDATION_TIMEOUT_MS`   | `30000`                           | Per-check browser timeout.                                      |
+| `OPRE_MAX_VALIDATION_ATTEMPTS` | `3`                               | Retries per task before the loop stops.                         |
+| `OPRE_LOG_LEVEL`               | `error`                           | `silent`, `error`, `warn`, `info` (stderr only).                |
 
 See [`.env.example`](./.env.example) for a copy-paste starting point.
 
@@ -301,17 +360,27 @@ npm install
 npm run typecheck     # tsc --noEmit, strict
 npm run lint          # eslint (type-checked rules)
 npm run format        # prettier
-npm test              # unit + integration (80 tests, includes real-browser runs)
-npm run test:e2e      # builds dist/ and drives the real stdio server with an MCP client
+npm test              # unit + integration (85 tests, includes real-browser runs)
+npm run test:e2e      # builds dist/, drives the built server AND the source server over stdio
+npm run demo          # one-command walkthrough against a real site
+npm run bench         # measured performance table
 npm run verify        # everything the CI runs, minus the build
 ```
 
-Manual smoke check against a real site (drives the built server through a real MCP client):
+### Performance
 
-```bash
-npm run build
-node scripts/smoke.mjs https://example.com
-```
+`npm run bench` measures what a user actually feels. Current numbers on a modest laptop
+(4-page research, 200 synthetic findings):
+
+| Operation                              | Before | After   |
+| -------------------------------------- | ------ | ------- |
+| cold start → first tool list           | 604 ms | ~290 ms |
+| research, 4 pages, concurrency 3       | 3.84 s | 2.65 s  |
+| `opre.search_knowledge` (200 findings) | 6 ms   | 6 ms    |
+| MCP tool call round-trip               | 1 ms   | 1 ms    |
+
+What made the difference: Playwright is imported lazily (most tool calls never need a browser),
+and pages are inspected concurrently while results stay in deterministic frontier order.
 
 Layout of the source:
 
@@ -329,9 +398,22 @@ src/
   build/               task-scoped build context, implementation results
   validation/          dev-server runner, browser checks, runs and feedback loop
   tools/               MCP tool registrations grouped by domain
+    catalog.ts         the agent-facing surface: every tool title + description
+    guide-tools.ts     opre.get_guide — stage-aware next steps
+scripts/               demo.mjs (walkthrough), bench.mjs (performance), smoke.mjs
 ```
 
 Milestone status and design decisions are tracked in [`docs/DEVELOPMENT_LOG.md`](./docs/DEVELOPMENT_LOG.md).
+
+---
+
+## Contributing, security, licence
+
+- [CONTRIBUTING.md](./CONTRIBUTING.md) — setup, ground rules, how to add a tool.
+- [SECURITY.md](./SECURITY.md) — threat model, controls, private reporting.
+- [`agents/README.md`](./agents/README.md) — the two workflows as agent instructions, for clients
+  without slash-command support.
+- MIT licensed. Respect the licences of dependencies and of anything you analyse.
 
 ---
 

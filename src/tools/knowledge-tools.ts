@@ -6,6 +6,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { copyFor } from './catalog.js';
 import type { OpreConfig } from '../config.js';
 import { NotFoundError } from '../core/errors.js';
 import { appendSection } from '../core/json-store.js';
@@ -32,9 +33,8 @@ export function registerKnowledgeTools(server: McpServer, config: OpreConfig): v
   server.registerTool(
     'opre.search_knowledge',
     {
-      title: 'Search the knowledge base',
-      description:
-        'Ranked, bounded search across features, findings, evidence, pages, tasks and documents. Returns ids and snippets only — never the whole knowledge base. Use it whenever you need context you do not already hold.',
+      title: copyFor('opre.search_knowledge').title,
+      description: copyFor('opre.search_knowledge').description,
       inputSchema: {
         project: projectParam,
         query: z.string().describe('Search terms.'),
@@ -71,9 +71,8 @@ export function registerKnowledgeTools(server: McpServer, config: OpreConfig): v
   server.registerTool(
     'opre.get_feature',
     {
-      title: 'Get a feature',
-      description:
-        'Full record for one feature: summary, status, acceptance criteria, linked findings, evidence and workflows. Use it before implementing a feature so the criteria drive the work.',
+      title: copyFor('opre.get_feature').title,
+      description: copyFor('opre.get_feature').description,
       inputSchema: {
         project: projectParam,
         featureId: z.string().describe('Feature id or exact name.'),
@@ -133,9 +132,8 @@ export function registerKnowledgeTools(server: McpServer, config: OpreConfig): v
   server.registerTool(
     'opre.upsert_feature',
     {
-      title: 'Create or update a feature',
-      description:
-        'Writes a feature record: acceptance criteria, linked findings/evidence, tags and status. Provide featureId to update an existing feature; omit it to create a new one. Keep criteria concrete and verifiable — they drive validation.',
+      title: copyFor('opre.upsert_feature').title,
+      description: copyFor('opre.upsert_feature').description,
       inputSchema: {
         project: projectParam,
         featureId: z.string().optional().describe('Existing feature id to update. Omit to create.'),
@@ -240,9 +238,8 @@ export function registerKnowledgeTools(server: McpServer, config: OpreConfig): v
   server.registerTool(
     'opre.get_evidence',
     {
-      title: 'Get evidence',
-      description:
-        'The observations behind findings. Returns the exact evidence records (quote, measurement, DOM fact) with their source references, bounded and paginated. Use it to check a claim before relying on it.',
+      title: copyFor('opre.get_evidence').title,
+      description: copyFor('opre.get_evidence').description,
       inputSchema: {
         project: projectParam,
         findingId: z.string().optional().describe('Return every finding matching this id prefix.'),
@@ -304,9 +301,8 @@ export function registerKnowledgeTools(server: McpServer, config: OpreConfig): v
   server.registerTool(
     'opre.get_document_excerpt',
     {
-      title: 'Get a document excerpt',
-      description:
-        'Returns a line-bounded excerpt of one project document (research overview, requirements, decisions, uncertainties, implementation plan, known gaps) instead of the whole file. Use pagination parameters to read further.',
+      title: copyFor('opre.get_document_excerpt').title,
+      description: copyFor('opre.get_document_excerpt').description,
       inputSchema: {
         project: projectParam,
         documentId: z.string().describe('Document id or path, e.g. "knowledge/decisions.md".'),
@@ -354,9 +350,8 @@ export function registerKnowledgeTools(server: McpServer, config: OpreConfig): v
   server.registerTool(
     'opre.record_note',
     {
-      title: 'Record a knowledge note',
-      description:
-        'Appends a dated, human-readable note to knowledge/requirements.md, knowledge/decisions.md, knowledge/uncertainties.md, or a workflow document. Appends never overwrite operator text.',
+      title: copyFor('opre.record_note').title,
+      description: copyFor('opre.record_note').description,
       inputSchema: {
         project: projectParam,
         kind: z

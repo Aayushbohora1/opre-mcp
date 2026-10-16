@@ -2,6 +2,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { copyFor } from './catalog.js';
 import type { OpreConfig } from '../config.js';
 import { InvalidInputError } from '../core/errors.js';
 import { appendSection } from '../core/json-store.js';
@@ -30,9 +31,8 @@ export function registerBuildTools(server: McpServer, config: OpreConfig): void 
   server.registerTool(
     'opre.prepare_build_context',
     {
-      title: 'Prepare build context for a task',
-      description:
-        'Returns the minimum context needed to implement one task: the task, its features and acceptance criteria, the supporting findings and evidence, relevant researched routes, recent decisions, previous attempts, the state of app/ and the validation plan. Bounded to a fixed character budget; dropped sections are reported so you can request them explicitly.',
+      title: copyFor('opre.prepare_build_context').title,
+      description: copyFor('opre.prepare_build_context').description,
       inputSchema: {
         project: projectParam,
         taskId: z.string().describe('Task to prepare context for (from opre.get_next_task).'),
@@ -76,9 +76,8 @@ export function registerBuildTools(server: McpServer, config: OpreConfig): void 
   server.registerTool(
     'opre.record_implementation_result',
     {
-      title: 'Record an implementation result',
-      description:
-        'Stores what you actually did for a task: files changed, commands run and their exit codes, which acceptance criteria are met, and the gaps you found. The task status, feature status and knowledge gaps are updated, so the next session continues where you stopped.',
+      title: copyFor('opre.record_implementation_result').title,
+      description: copyFor('opre.record_implementation_result').description,
       inputSchema: {
         project: projectParam,
         taskId: z.string(),

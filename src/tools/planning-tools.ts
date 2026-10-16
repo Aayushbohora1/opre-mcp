@@ -2,6 +2,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { copyFor } from './catalog.js';
 import type { OpreConfig } from '../config.js';
 import { InvalidInputError } from '../core/errors.js';
 import { nowIso } from '../core/ids.js';
@@ -49,9 +50,8 @@ export function registerPlanningTools(server: McpServer, config: OpreConfig): vo
   server.registerTool(
     'opre.create_implementation_plan',
     {
-      title: 'Create the implementation plan',
-      description:
-        'Turns research into a dependency-ordered backlog. Mode "draft" derives features and tasks from the researched routes (review and refine afterwards); mode "apply" stores exactly the features and tasks you submit, validating task dependencies. Writes planning/plan.md and planning/tasks.json.',
+      title: copyFor('opre.create_implementation_plan').title,
+      description: copyFor('opre.create_implementation_plan').description,
       inputSchema: {
         project: projectParam,
         goal: z
@@ -201,9 +201,8 @@ export function registerPlanningTools(server: McpServer, config: OpreConfig): vo
   server.registerTool(
     'opre.list_tasks',
     {
-      title: 'List tasks',
-      description:
-        'Paginated backlog with status, dependencies and blocked reasons. Use it to review progress without loading every record.',
+      title: copyFor('opre.list_tasks').title,
+      description: copyFor('opre.list_tasks').description,
       inputSchema: {
         project: projectParam,
         status: z
@@ -254,9 +253,8 @@ export function registerPlanningTools(server: McpServer, config: OpreConfig): vo
   server.registerTool(
     'opre.get_next_task',
     {
-      title: 'Get the next task',
-      description:
-        'Highest-priority task whose dependencies are satisfied, with a short readiness check. Call this between build iterations; it is the entry point of the incremental loop.',
+      title: copyFor('opre.get_next_task').title,
+      description: copyFor('opre.get_next_task').description,
       inputSchema: {
         project: projectParam,
         markInProgress: z
@@ -316,9 +314,8 @@ export function registerPlanningTools(server: McpServer, config: OpreConfig): vo
   server.registerTool(
     'opre.update_task_status',
     {
-      title: 'Update task status',
-      description:
-        'Moves a task through its lifecycle (pending → in_progress → done/failed/blocked/cancelled) and records notes, changed files and attempt counts. Status survives restarts and drives dependency resolution.',
+      title: copyFor('opre.update_task_status').title,
+      description: copyFor('opre.update_task_status').description,
       inputSchema: {
         project: projectParam,
         taskId: z.string(),
@@ -381,9 +378,8 @@ export function registerPlanningTools(server: McpServer, config: OpreConfig): vo
   server.registerTool(
     'opre.upsert_task',
     {
-      title: 'Create or update a task',
-      description:
-        'Writes a single task with acceptance criteria and optional validation checks. Use it to refine a drafted plan or to add follow-up work discovered during implementation.',
+      title: copyFor('opre.upsert_task').title,
+      description: copyFor('opre.upsert_task').description,
       inputSchema: {
         project: projectParam,
         taskId: z.string().optional().describe('Existing task id to update. Omit to create.'),

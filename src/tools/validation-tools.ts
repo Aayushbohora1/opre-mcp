@@ -2,6 +2,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { copyFor } from './catalog.js';
 import type { OpreConfig } from '../config.js';
 import { NotFoundError, UnsupportedCapabilityError } from '../core/errors.js';
 import { truncateChars } from '../core/limits.js';
@@ -36,9 +37,8 @@ export function registerValidationTools(server: McpServer, config: OpreConfig): 
   server.registerTool(
     'opre.run_validation',
     {
-      title: 'Run browser validation',
-      description:
-        "Starts the configured local dev server (or reuses a running one), opens the generated app in Chromium, runs the task's acceptance checks, captures screenshots and console/network errors, and stores a structured run. Failures are written to validation/known-gaps.md for the next iteration. Stops after the configured attempt limit.",
+      title: copyFor('opre.run_validation').title,
+      description: copyFor('opre.run_validation').description,
       inputSchema: {
         project: projectParam,
         taskId: z
@@ -104,9 +104,8 @@ export function registerValidationTools(server: McpServer, config: OpreConfig): 
   server.registerTool(
     'opre.get_validation_report',
     {
-      title: 'Get the validation report',
-      description:
-        'Structured validation history: recent runs, failures per task, open gaps and the last run detail. Use it after a failure to decide what to fix next. Returns summaries, not the full run corpus.',
+      title: copyFor('opre.get_validation_report').title,
+      description: copyFor('opre.get_validation_report').description,
       inputSchema: {
         project: projectParam,
         runId: z.string().optional().describe('Return one specific run in detail.'),

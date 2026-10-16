@@ -88,6 +88,8 @@ export function registerValidationTools(server: McpServer, config: OpreConfig): 
           args: args2,
           port: argNumber(record, 'port'),
           checks: normalizeChecks(argArray(record, 'checks')),
+          compareReference: argBoolean(record, 'compareReference'),
+          maxCompareRoutes: argNumber(record, 'maxCompareRoutes'),
           saveScreenshots: argBoolean(record, 'saveScreenshots') ?? true,
         });
         await progress.report('Validation complete', 3, 3);

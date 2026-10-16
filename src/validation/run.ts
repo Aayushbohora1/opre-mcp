@@ -24,6 +24,7 @@ import { parseUrl } from '../security/url.js';
 import { checksForTask, runBrowserChecks } from './browser-checks.js';
 import { resolveServerSpec, startDevServer, waitForPort, type DevServerHandle } from './runner.js';
 import { appendKnownGaps, appendRun, readRuns } from './store.js';
+import type { ReferenceComparison } from './reference-compare.js';
 import type { ValidationRunRecord, ValidationStatus } from './types.js';
 
 export interface RunValidationOptions {
@@ -35,6 +36,9 @@ export interface RunValidationOptions {
   port?: number;
   checks?: BrowserCheckSpec[];
   saveScreenshots?: boolean;
+  /** Diff the running app against the researched reference (default: true when available). */
+  compareReference?: boolean;
+  maxCompareRoutes?: number;
 }
 
 export interface RunValidationResult {
@@ -54,10 +58,22 @@ export interface RunValidationResult {
   consoleErrors: string[];
   failedRequests: string[];
   gaps: string[];
+  fidelity: FidelityOutcome;
   reportPath: string;
   nextAction: string;
   stopped: boolean;
   stopReason: string | null;
+}
+
+export interface FidelityOutcome {
+  compared: boolean;
+  averageScore: number;
+  routesCompared: number;
+  verdict: 'match' | 'close' | 'partial' | 'divergent' | 'unavailable';
+  missingRoutes: string[];
+  extraRoutes: string[];
+  routes: Array<{ route: string; score: number; verdict: string; topDifferences: string[] }>;
+  note: string;
 }
 
 export async function runValidation(
@@ -130,11 +146,34 @@ export async function runValidation(
     });
 
     const failed = outcome.results.filter((result) => result.status !== 'passed');
+    const comparison =
+      options.compareReference === false
+        ? null
+        : await runReferenceComparison(config, paths, target, startPath, options);
+    const fidelity =
+      comparison === null
+        ? unavailable('Skipped: compareReference was false')
+        : summariseComparison(comparison);
+
     const gaps = [
       ...failed.map(
         (result) =>
           `${result.id}: ${result.description} — ${result.error ?? `expected ${result.expected ?? 'success'}, observed ${result.observed ?? 'nothing'}`}`,
       ),
+      ...(fidelity.compared && fidelity.verdict !== 'match'
+        ? [
+            `Fidelity ${(fidelity.averageScore * 100).toFixed(0)}% across ${fidelity.routesCompared} route(s): ${fidelity.routes
+              .filter((route) => route.verdict !== 'match')
+              .slice(0, 2)
+              .map((route) => `${route.route} — ${route.topDifferences[0] ?? route.verdict}`)
+              .join(' | ')}`,
+          ]
+        : []),
+      ...(fidelity.compared && fidelity.missingRoutes.length > 0
+        ? [
+            `Reference routes missing from the rebuild: ${fidelity.missingRoutes.slice(0, 8).join(', ')}`,
+          ]
+        : []),
       ...(outcome.consoleErrors.length > 0
         ? [`Console errors observed: ${outcome.consoleErrors.slice(0, 3).join(' | ')}`]
         : []),
@@ -167,6 +206,7 @@ export async function runValidation(
       failedRequests: outcome.failedRequests,
       gaps,
       attemptNumber,
+      fidelity: comparison?.reports ?? [],
       notes: `Browser: ${outcome.browserLaunch}`,
     };
 
@@ -194,13 +234,16 @@ export async function runValidation(
       consoleErrors: outcome.consoleErrors,
       failedRequests: outcome.failedRequests,
       gaps,
+      fidelity,
       reportPath: 'validation/runs.json',
       nextAction:
-        failed.length === 0
+        failed.length === 0 && (fidelity.compared ? fidelity.verdict === 'match' : true)
           ? 'Mark the task done with opre.update_task_status, then take the next task with opre.get_next_task.'
           : stopped
             ? 'Attempt limit reached. Review validation/known-gaps.md, record a decision, or raise the limit before retrying.'
-            : `Fix the failing checks, then rerun opre.run_validation for ${task?.id ?? 'the project'} (${attemptsRemaining} attempt(s) left).`,
+            : `Fix what the report points at (checks${
+                fidelity.compared ? ' and the fidelity differences' : ''
+              }), then rerun opre.run_validation for ${task?.id ?? 'the project'} (${attemptsRemaining} attempt(s) left).`,
       stopped,
       stopReason: stopped ? 'attempt limit reached' : null,
     };
@@ -225,6 +268,15 @@ export interface ValidationReportSummary {
   } | null;
   failuresByTask: Array<{ taskId: string; failures: number; lastStatus: string }>;
   openGaps: number;
+  fidelity: {
+    compared: boolean;
+    averageScore: number;
+    routesCompared: number;
+    verdict: string;
+    note: string;
+    routes: Array<{ route: string; score: number; verdict: string; topDifferences: string[] }>;
+    missingRoutes: string[];
+  } | null;
   recentRuns: Array<{
     id: string;
     status: string;
@@ -250,6 +302,7 @@ export async function summariseValidation(paths: ProjectPaths): Promise<Validati
     byTask.set(run.taskId, entry);
   }
   const last = runs.at(-1);
+  const lastWithFidelity = [...runs].reverse().find((run) => (run.fidelity ?? []).length > 0);
   return {
     totalRuns: runs.length,
     lastRun:
@@ -270,6 +323,25 @@ export async function summariseValidation(paths: ProjectPaths): Promise<Validati
       }))
       .sort((a, b) => b.failures - a.failures),
     openGaps: runs.reduce((sum, run) => sum + run.gaps.length, 0),
+    fidelity:
+      lastWithFidelity === undefined
+        ? null
+        : {
+            compared: true,
+            averageScore: averageFidelity(lastWithFidelity.fidelity ?? []),
+            routesCompared: lastWithFidelity.fidelity?.length ?? 0,
+            verdict: verdictForScore(averageFidelity(lastWithFidelity.fidelity ?? [])),
+            note: 'Structural comparison against the researched reference.',
+            routes: (lastWithFidelity.fidelity ?? []).map((report) => ({
+              route: report.route,
+              score: report.score,
+              verdict: report.verdict,
+              topDifferences: report.differences.slice(0, 3),
+            })),
+            missingRoutes: (lastWithFidelity.fidelity ?? [])
+              .filter((report) => report.score < 0.95)
+              .map((report) => report.route),
+          },
     recentRuns: recent.map((run) => ({
       id: run.id,
       status: run.status,
@@ -287,6 +359,85 @@ export async function requireTaskForValidation(paths: ProjectPaths, taskId: stri
   if (!tasks.some((task) => task.id === taskId)) {
     throw new NotFoundError(`Unknown task "${taskId}"`);
   }
+}
+
+function unavailable(note: string): FidelityOutcome {
+  return {
+    compared: false,
+    averageScore: 0,
+    routesCompared: 0,
+    verdict: 'unavailable',
+    missingRoutes: [],
+    extraRoutes: [],
+    routes: [],
+    note,
+  };
+}
+
+/**
+ * Compares the running app against the researched reference. A missing reference
+ * (older projects, or research without fingerprints) is reported as unavailable
+ * rather than silently scoring 0.
+ */
+async function runReferenceComparison(
+  config: OpreConfig,
+  paths: ProjectPaths,
+  baseUrl: string,
+  startPath: string,
+  options: RunValidationOptions,
+): Promise<ReferenceComparison> {
+  const { compareWithReference } = await import('./reference-compare.js');
+  return compareWithReference(config, paths, {
+    baseUrl,
+    maxRoutes: options.maxCompareRoutes ?? 8,
+    saveScreenshots: options.saveScreenshots ?? true,
+    screenshotDir: resolveInside(paths.root, 'artifacts/screenshots'),
+    startPaths: [startPath],
+  });
+}
+
+function summariseComparison(comparison: ReferenceComparison): FidelityOutcome {
+  if (comparison.reports.length === 0) {
+    return unavailable(
+      comparison.skipped > 0
+        ? 'No reference fingerprints available. Re-run opre.start_research so pages carry a fingerprint.'
+        : 'No reference routes could be compared (the rebuild may not serve the researched routes yet).',
+    );
+  }
+
+  const summary = comparison.summary;
+  const average = summary.averageScore;
+  return {
+    compared: true,
+    averageScore: average,
+    routesCompared: summary.routesCompared,
+    verdict:
+      average >= 0.95
+        ? 'match'
+        : average >= 0.8
+          ? 'close'
+          : average >= 0.5
+            ? 'partial'
+            : 'divergent',
+    missingRoutes: summary.missingRoutes,
+    extraRoutes: summary.extraRoutes,
+    routes: summary.routes,
+    note: 'Structural comparison of headings, text, links, forms, interactive elements, design tokens and screenshots.',
+  };
+}
+
+function averageFidelity(reports: Array<{ score: number }>): number {
+  if (reports.length === 0) {
+    return 0;
+  }
+  return (
+    Math.round((reports.reduce((sum, report) => sum + report.score, 0) / reports.length) * 1000) /
+    1000
+  );
+}
+
+function verdictForScore(score: number): string {
+  return score >= 0.95 ? 'match' : score >= 0.8 ? 'close' : score >= 0.5 ? 'partial' : 'divergent';
 }
 
 function portFromUrl(url: string): number | null {

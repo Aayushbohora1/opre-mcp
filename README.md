@@ -35,10 +35,27 @@ git clone https://github.com/Aayushbohora1/opre-mcp.git
 cd opre-mcp
 npm install          # compiles dist/ automatically (prepare script)
 npm run demo         # drives the whole loop against https://example.com
+npm run rebuild-demo # ...and rebuilds it, then scores the rebuild against the original
 ```
 
 `npm run demo` opens a real browser, records evidence, drafts a plan, and prints exactly what an
-agent would see at each step. It uses a throwaway project in a temp directory.
+agent would see at each step. `npm run rebuild-demo` goes one step further: it stands in for the
+coding agent with a deterministic builder, produces a runnable site, starts it, validates it in a
+browser, and then **measures how close it is to the original**:
+
+```
+[6/6] fidelity against the reference
+  overall 93% close across 1 route(s)
+
+   93%  /  close
+        - tokens: missing "font:system-ui"
+        - tokens: missing "size:14px"
+        - tokens: unexpected "font:Times New Roman"
+```
+
+That number is the point. Without OPRE the builder had a URL and nothing else; with it, the builder
+got structured evidence, persisted state, a started server, a real browser check, and an exact list
+of what still differs. Both demos use throwaway projects in a temp directory.
 
 Then connect it to your agent:
 
@@ -61,13 +78,13 @@ first move should be `opre.get_guide`, which returns the exact next steps for th
 
 ## Why it is built this way
 
-| Problem with "just look at the screenshots"                | How OPRE answers it                                                                                                  |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Agents reload the whole project into context every session | Every response is size-bounded and paginated; state lives on disk, not in the conversation.                          |
-| Claims drift from reality                                  | Findings carry provenance, confidence and _limitations_; validation runs prove behaviour in a browser.               |
-| Targets can try to manipulate the agent                    | Captured content is stored as untrusted evidence, scanned for injected instructions, and never treated as a command. |
-| One giant code-generation pass                             | A dependency-aware backlog; the agent takes one task, implements it, records it, validates it.                       |
-| "It looks the same"                                        | Acceptance criteria are executable checks, with failures written back into the next iteration.                       |
+| Problem with "just look at the screenshots"                | How OPRE answers it                                                                                                                                    |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Agents reload the whole project into context every session | Every response is size-bounded and paginated; state lives on disk, not in the conversation.                                                            |
+| Claims drift from reality                                  | Findings carry provenance, confidence and _limitations_; validation runs prove behaviour in a browser.                                                 |
+| Targets can try to manipulate the agent                    | Captured content is stored as untrusted evidence, scanned for injected instructions, and never treated as a command.                                   |
+| One giant code-generation pass                             | A dependency-aware backlog; the agent takes one task, implements it, records it, validates it.                                                         |
+| "It looks the same"                                        | Validation compares the running app to the reference **structurally and visually**, and reports a per-route fidelity score with the exact differences. |
 
 agent (reasoning + codegen) <──MCP tools──> OPRE (research · knowledge · planning · validation)
 └──> project directory on disk (survives restarts)
@@ -198,33 +215,33 @@ Every tool has a short title and a description that says _when to use it and wha
 The same copy lives in [`src/tools/catalog.ts`](./src/tools/catalog.ts) — the single owner of the
 agent-facing surface.
 
-| Tool                                | Title                      | Use it to                                                            |
-| ----------------------------------- | -------------------------- | -------------------------------------------------------------------- |
-| `opre.create_project`               | Start a project            | Create the isolated workspace for a target.                          |
-| `opre.get_guide`                    | What to do next            | Get the stage-aware playbook with example arguments. **Start here.** |
-| `opre.list_projects`                | List projects              | Discover project names/ids.                                          |
-| `opre.get_project_status`           | Project status             | See stage, counts, progress, next action.                            |
-| `opre.update_project_config`        | Project settings           | Configure the dev server, app dir, allowed hosts, attempt limits.    |
-| `opre.start_research`               | Research the target        | Observe the real site in a browser and store evidence.               |
-| `opre.get_research_summary`         | Research summary           | Read a bounded overview and the explicit unknowns.                   |
-| `opre.search_research`              | Search research            | Ranked search over pages and findings.                               |
-| `opre.add_finding`                  | Record a finding           | Store an observed/derived/hypothesis conclusion with limitations.    |
-| `opre.search_knowledge`             | Search the knowledge base  | Bounded, paginated search across everything known.                   |
-| `opre.get_feature`                  | Get a feature              | Read one feature with criteria, evidence and tasks.                  |
-| `opre.upsert_feature`               | Create or update a feature | Write a feature record.                                              |
-| `opre.get_evidence`                 | Get evidence               | Check the observations behind a claim.                               |
-| `opre.get_document_excerpt`         | Read a document            | Excerpt one project document, paginated.                             |
-| `opre.record_note`                  | Record a note              | Append a requirement, decision, uncertainty or workflow.             |
-| `opre.create_implementation_plan`   | Plan the build             | Turn research into features and ordered tasks.                       |
-| `opre.list_tasks`                   | List tasks                 | Review the backlog and what is blocked.                              |
-| `opre.get_next_task`                | Next task                  | Take the highest-priority actionable task.                           |
-| `opre.upsert_task`                  | Create or update a task    | Write one task and its browser checks.                               |
-| `opre.update_task_status`           | Update task status         | Move a task through its lifecycle.                                   |
-| `opre.prepare_build_context`        | Prepare build context      | Get everything one task needs, within budget.                        |
-| `opre.record_implementation_result` | Record the result          | Store what was built, what passed, what is missing.                  |
-| `opre.run_validation`               | Run validation             | Start the app and run acceptance checks in a browser.                |
-| `opre.get_validation_report`        | Validation report          | See run history, failures per task, open gaps.                       |
-| `opre.inspect_app_package`          | Inspect an app package     | Authorised static analysis of an `.apk`/`.ipa`/`.zip`.               |
+| Tool                                | Title                      | Use it to                                                                 |
+| ----------------------------------- | -------------------------- | ------------------------------------------------------------------------- |
+| `opre.create_project`               | Start a project            | Create the isolated workspace for a target.                               |
+| `opre.get_guide`                    | What to do next            | Get the stage-aware playbook with example arguments. **Start here.**      |
+| `opre.list_projects`                | List projects              | Discover project names/ids.                                               |
+| `opre.get_project_status`           | Project status             | See stage, counts, progress, next action.                                 |
+| `opre.update_project_config`        | Project settings           | Configure the dev server, app dir, allowed hosts, attempt limits.         |
+| `opre.start_research`               | Research the target        | Observe the real site in a browser and store evidence.                    |
+| `opre.get_research_summary`         | Research summary           | Read a bounded overview and the explicit unknowns.                        |
+| `opre.search_research`              | Search research            | Ranked search over pages and findings.                                    |
+| `opre.add_finding`                  | Record a finding           | Store an observed/derived/hypothesis conclusion with limitations.         |
+| `opre.search_knowledge`             | Search the knowledge base  | Bounded, paginated search across everything known.                        |
+| `opre.get_feature`                  | Get a feature              | Read one feature with criteria, evidence and tasks.                       |
+| `opre.upsert_feature`               | Create or update a feature | Write a feature record.                                                   |
+| `opre.get_evidence`                 | Get evidence               | Check the observations behind a claim.                                    |
+| `opre.get_document_excerpt`         | Read a document            | Excerpt one project document, paginated.                                  |
+| `opre.record_note`                  | Record a note              | Append a requirement, decision, uncertainty or workflow.                  |
+| `opre.create_implementation_plan`   | Plan the build             | Turn research into features and ordered tasks.                            |
+| `opre.list_tasks`                   | List tasks                 | Review the backlog and what is blocked.                                   |
+| `opre.get_next_task`                | Next task                  | Take the highest-priority actionable task.                                |
+| `opre.upsert_task`                  | Create or update a task    | Write one task and its browser checks.                                    |
+| `opre.update_task_status`           | Update task status         | Move a task through its lifecycle.                                        |
+| `opre.prepare_build_context`        | Prepare build context      | Get everything one task needs, within budget.                             |
+| `opre.record_implementation_result` | Record the result          | Store what was built, what passed, what is missing.                       |
+| `opre.run_validation`               | Run validation             | Start the app, run acceptance checks, and score it against the reference. |
+| `opre.get_validation_report`        | Validation report          | See run history, failures per task, open gaps.                            |
+| `opre.inspect_app_package`          | Inspect an app package     | Authorised static analysis of an `.apk`/`.ipa`/`.zip`.                    |
 
 Unsupported capabilities are never faked: tools return a structured `unsupported_capability`
 error with an actionable hint (for example, no web-search provider configured, or no Chromium
@@ -268,6 +285,36 @@ same target becomes `example-com-2`. The unique id lives in `opre.json`.
 Regenerated markdown (`README.md`, `research/report.md`, `research/architecture.md`,
 `planning/plan.md`) is written between `<!-- opre:generated:begin -->` and
 `<!-- opre:generated:end -->` markers. Anything you write outside those markers is preserved.
+
+---
+
+## Fidelity: proof, not vibes
+
+This is the part that makes OPRE more than a research dump. During research each page gets a
+**fingerprint**: heading tree, landmarks, text blocks, link paths, form signatures, interactive
+controls, image alts, and design tokens (colours, font families, sizes, radii) — plus a screenshot.
+When you validate the rebuild, OPRE captures the _same_ fingerprint from the running app and diffs
+them.
+
+| Section       | Weight | What a mismatch means                 |
+| ------------- | ------ | ------------------------------------- |
+| headings      | 30%    | wrong information architecture        |
+| text          | 25%    | missing or invented copy              |
+| links         | 15%    | broken or extra navigation            |
+| forms         | 10%    | wrong fields, types or required flags |
+| interactive   | 10%    | missing controls                      |
+| design tokens | 5%     | different look and feel               |
+| visual        | 5%     | pixel delta of the screenshots        |
+
+Scoring is F1 per section, so **missing** content and **invented** content are both defects. The
+result is a verdict (`match` ≥ 0.95, `close` ≥ 0.8, `partial` ≥ 0.5, otherwise `divergent`), a
+per-section breakdown, and a named list of differences. The visual section is a sampled pixel diff
+implemented in-tree (no extra dependency) and is always reported together with its tolerance,
+because "90% of sampled pixels differ at tolerance 24/255" is a fact, not a vibe.
+
+Fidelity gaps are written to `validation/known-gaps.md` exactly like failed checks, so the next
+build iteration starts from the difference list. When there is no reference (a project that never
+researched a target), the outcome is reported as `unavailable` — never as a zero.
 
 ---
 

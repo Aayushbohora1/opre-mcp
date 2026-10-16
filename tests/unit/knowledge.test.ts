@@ -45,6 +45,7 @@ async function seed(env: TestEnv) {
     consoleErrors: [],
     failedRequests: [],
     injectedInstructionSignals: 0,
+    fingerprint: null,
     collectedAt: nowIso(),
     notes: '',
   }));

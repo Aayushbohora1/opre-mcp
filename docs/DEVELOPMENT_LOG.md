@@ -31,10 +31,10 @@ first. "Verified" means exercised by an automated test, not merely compiled.
 
 ### Performance (measured, `npm run bench`)
 
-| Operation | Before | After |
-| --- | --- | --- |
-| cold start → first tool list | 604 ms | ~290-300 ms |
-| research, 4 pages, concurrency 3 | 3.84 s | 2.65 s |
+| Operation                        | Before | After       |
+| -------------------------------- | ------ | ----------- |
+| cold start → first tool list     | 604 ms | ~290-300 ms |
+| research, 4 pages, concurrency 3 | 3.84 s | 2.65 s      |
 
 - Playwright is imported lazily in `src/research/browser.ts`; most tool calls never need a browser.
 - Page inspection runs concurrently (`OPRE_RESEARCH_CONCURRENCY`, default 3) while results are

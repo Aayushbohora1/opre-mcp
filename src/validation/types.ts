@@ -1,3 +1,5 @@
+import type { FidelityReport } from './fidelity.js';
+
 /** Validation records: browser acceptance runs and their structured results. */
 
 export type CheckStatus = 'passed' | 'failed' | 'skipped' | 'blocked';
@@ -29,6 +31,8 @@ export interface ValidationRunRecord {
   consoleErrors: string[];
   failedRequests: string[];
   gaps: string[];
+  /** Per-route fidelity against the researched reference, when available. */
+  fidelity: FidelityReport[];
   attemptNumber: number;
   notes: string;
 }

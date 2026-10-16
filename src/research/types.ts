@@ -86,6 +86,11 @@ export interface AssetRecord {
   bytes: number | null;
 }
 
+import type { PageFingerprint } from './fingerprint.js';
+
+/** Everything about a page except the screenshot path and capture time. */
+export type FingerprintRecord = Omit<PageFingerprint, 'screenshotPath' | 'capturedAt'>;
+
 export interface PageRecord {
   id: string;
   url: string;
@@ -107,6 +112,8 @@ export interface PageRecord {
   consoleErrors: string[];
   failedRequests: string[];
   injectedInstructionSignals: number;
+  /** Structural signature used for fidelity comparison against the rebuild. */
+  fingerprint: FingerprintRecord | null;
   collectedAt: string;
   notes: string;
 }

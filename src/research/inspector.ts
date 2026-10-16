@@ -23,7 +23,8 @@ import { scanForInjection } from '../security/untrusted.js';
 import { hostMatches, isLoopbackHost, parseUrl } from '../security/url.js';
 import { createContext, installTransformShim, launchBrowser } from './browser.js';
 import { newPageRecord, newSourceRecord } from './store.js';
-import type { FindingRecord, PageRecord, SourceRecord } from './types.js';
+import type { FindingRecord, FingerprintRecord, PageRecord, SourceRecord } from './types.js';
+import { captureFingerprint } from './fingerprint.js';
 
 export interface ResearchProgress {
   report: (message: string, progress?: number, total?: number) => void | Promise<void>;
@@ -318,6 +319,18 @@ async function inspectPage(
   const signals = scanForInjection(bodyText, 5);
   const redactions = findSecrets(bodyText);
 
+  // Structural signature for later fidelity comparison against the rebuild.
+  let fingerprint: FingerprintRecord | null = null;
+  if (error === null) {
+    try {
+      fingerprint = await captureFingerprint(page);
+    } catch (caught) {
+      pageErrors.push(
+        `fingerprint capture failed: ${caught instanceof Error ? caught.message : String(caught)}`,
+      );
+    }
+  }
+
   const record: PageRecord = {
     ...newPageRecord({
       url: item.url,
@@ -340,6 +353,7 @@ async function inspectPage(
       consoleErrors: dedupe(consoleErrors).slice(0, 10),
       failedRequests: dedupe(failedRequests).slice(0, 10),
       injectedInstructionSignals: signals.length,
+      fingerprint,
       notes: error === null ? pageErrors.join('; ') : `Navigation failed: ${error}`,
     }),
     id: pageId,

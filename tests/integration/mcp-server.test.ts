@@ -1,4 +1,6 @@
 import { readFile, readdir, writeFile, mkdir } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -390,6 +392,96 @@ describe('MCP server (in-memory transport)', () => {
     }
     const guide = tools.find((tool) => tool.name === 'opre.get_guide');
     expect(guide?.description).toContain('stage-aware playbook');
+  });
+
+  it('scores the rebuild against the researched reference', async () => {
+    const created = toolJson<{ project: string }>(
+      await client.callTool({
+        name: 'opre.create_project',
+        arguments: { target: site.origin, targetType: 'web', name: 'fidelity-check' },
+      }),
+    );
+    await client.callTool({
+      name: 'opre.start_research',
+      arguments: { project: created.project, maxPages: 1, maxDepth: 0, includeScreenshots: true },
+    });
+
+    // A deliberately incomplete rebuild: keeps the h1, drops the h2, the form and the nav links.
+    const weak = createServer((_request, response) => {
+      response.writeHead(200, { 'content-type': 'text/html' });
+      response.end(
+        '<!doctype html><html><head><title>Weak rebuild</title></head><body><h1>Acme widgets</h1></body></html>',
+      );
+    });
+    await new Promise<void>((resolve) => {
+      weak.listen(0, '127.0.0.1', resolve);
+    });
+    const weakPort = (weak.address() as AddressInfo).port;
+
+    try {
+      const result = toolJson<{
+        fidelity: {
+          compared: boolean;
+          averageScore: number;
+          verdict: string;
+          routesCompared: number;
+          routes: Array<{ route: string; score: number; topDifferences: string[] }>;
+          note: string;
+        };
+        gaps: string[];
+      }>(
+        await client.callTool({
+          name: 'opre.run_validation',
+          arguments: {
+            project: created.project,
+            baseUrl: `http://127.0.0.1:${weakPort}`,
+            compareReference: true,
+            checks: [{ id: 'loads', description: 'app loads', kind: 'navigate', target: '/' }],
+          },
+        }),
+      );
+
+      expect(result.fidelity.compared).toBe(true);
+      expect(result.fidelity.routesCompared).toBe(1);
+      // The weak rebuild keeps only the h1, so the score is well below "close".
+      expect(result.fidelity.averageScore).toBeLessThan(0.5);
+      expect(result.fidelity.verdict).toBe('divergent');
+      const differences = result.fidelity.routes[0]!.topDifferences.join(' ');
+      expect(differences).toMatch(/missing/);
+      // The gap is recorded so the next iteration knows what to fix.
+      expect(result.gaps.join(' ')).toContain('Fidelity');
+    } finally {
+      await new Promise<void>((resolve) => {
+        weak.close(() => resolve());
+      });
+    }
+  });
+
+  it('reports fidelity as unavailable when there is no reference to compare', async () => {
+    // A project that never researched a target has nothing to compare against.
+    const fresh = toolJson<{ project: string }>(
+      await client.callTool({
+        name: 'opre.create_project',
+        arguments: {
+          target: 'https://no-reference.example',
+          targetType: 'web',
+          name: 'no-reference',
+        },
+      }),
+    );
+
+    const result = toolJson<{ fidelity: { compared: boolean; note: string } }>(
+      await client.callTool({
+        name: 'opre.run_validation',
+        arguments: {
+          project: fresh.project,
+          baseUrl: site.origin,
+          checks: [{ id: 'loads', description: 'home loads', kind: 'navigate', target: '/' }],
+        },
+      }),
+    );
+    expect(result.fidelity.compared).toBe(false);
+    expect(result.fidelity.note).toMatch(/reference/i);
   });
 
   it('returns structured errors instead of crashing', async () => {

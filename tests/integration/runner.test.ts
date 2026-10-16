@@ -96,7 +96,7 @@ describe('resolveServerSpec', () => {
         runnerArgs: ['run', 'dev'],
       });
       const spec = resolveServerSpec(env.config, project.paths, project.manifest);
-      expect(spec.cwd.endsWith('generated-app')).toBe(true);
+      expect(spec.cwd.endsWith('app')).toBe(true);
       expect(spec.env['PORT']).toBeTypeOf('string');
       expect(Object.keys(spec.env)).not.toContain('OPENAI_API_KEY');
     } finally {

@@ -23,6 +23,7 @@ import type { BrowserCheckSpec, TaskRecord, TaskStatus } from '../planning/types
 import { blockedReason } from '../planning/types.js';
 import { paginate } from '../core/limits.js';
 import { assertSafeSegment } from '../security/paths.js';
+import { refreshProjectIndex } from '../project/index-document.js';
 import {
   argArray,
   argBoolean,
@@ -50,7 +51,7 @@ export function registerPlanningTools(server: McpServer, config: OpreConfig): vo
     {
       title: 'Create the implementation plan',
       description:
-        'Turns research into a dependency-ordered backlog. Mode "draft" derives features and tasks from the researched routes (review and refine afterwards); mode "apply" stores exactly the features and tasks you submit, validating task dependencies. Writes planning/implementation-plan.md and planning/tasks.json.',
+        'Turns research into a dependency-ordered backlog. Mode "draft" derives features and tasks from the researched routes (review and refine afterwards); mode "apply" stores exactly the features and tasks you submit, validating task dependencies. Writes planning/plan.md and planning/tasks.json.',
       inputSchema: {
         project: projectParam,
         goal: z
@@ -163,11 +164,13 @@ export function registerPlanningTools(server: McpServer, config: OpreConfig): vo
               includeValidationTask: argBoolean(record, 'includeValidationTask') ?? true,
             });
 
+      await refreshProjectIndex(project.paths, project.manifest);
+
       return {
         data: {
           mode: outcome.mode,
           goal: outcome.metadata.goal,
-          planDocument: 'planning/implementation-plan.md',
+          planDocument: 'planning/plan.md',
           featureCount: outcome.features.length,
           taskCount: outcome.tasks.length,
           orderedTaskIds: outcome.metadata.orderedTaskIds,

@@ -51,7 +51,7 @@ export interface BuildContext {
   }>;
   recentDecisions: string;
   previousResults: Array<{ id: string; outcome: string; summary: string; createdAt: string }>;
-  generatedApp: { exists: boolean; entryFiles: string[]; packageScripts: Record<string, string> };
+  app: { exists: boolean; entryFiles: string[]; packageScripts: Record<string, string> };
   validationPlan: {
     command: string[] | null;
     checks: TaskRecord['validation']['checks'];
@@ -109,7 +109,7 @@ export async function prepareBuildContext(
       createdAt: result.createdAt,
     }));
 
-  const generatedApp = await describeGeneratedApp(paths);
+  const app = await describeGeneratedApp(paths);
 
   const context: BuildContext = {
     project: { name: manifest.name, root: paths.root, target: manifest.target },
@@ -127,7 +127,7 @@ export async function prepareBuildContext(
     pages,
     recentDecisions,
     previousResults,
-    generatedApp,
+    app,
     validationPlan: {
       command: task.validation.command,
       checks: task.validation.checks,
@@ -209,8 +209,8 @@ async function tail(path: string, lines: number): Promise<string> {
   }
 }
 
-async function describeGeneratedApp(paths: ProjectPaths): Promise<BuildContext['generatedApp']> {
-  const appDir = join(paths.root, 'generated-app');
+async function describeGeneratedApp(paths: ProjectPaths): Promise<BuildContext['app']> {
+  const appDir = join(paths.root, 'app');
   const exists = await stat(appDir).then(
     (info) => info.isDirectory(),
     () => false,

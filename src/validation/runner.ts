@@ -5,7 +5,7 @@
  *  - no shell: commands are spawned with `shell: false` and an argument-vector;
  *  - the command must be a known-safe executable and every argument must be free
  *    of shell metacharacters;
- *  - the working directory is always the project's `generated-app` directory;
+ *  - the working directory is always the project's `app` directory;
  *  - the child receives a scrubbed environment (no API keys, tokens or secrets);
  *  - disabling is possible with OPRE_RUNNER_ENABLED=false.
  */

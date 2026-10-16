@@ -1,6 +1,6 @@
 /**
  * Turns stored research records into the two human-readable reports
- * (`research/overview.md` and `research/architecture.md`).
+ * (`research/report.md` and `research/architecture.md`).
  *
  * Reports are regenerated into marked sections so operator edits are preserved,
  * and they always link back to finding ids instead of inlining the corpus.
@@ -25,7 +25,7 @@ export interface ReportInput {
 }
 
 export async function writeResearchReports(paths: ProjectPaths, input: ReportInput): Promise<void> {
-  await upsertGeneratedSection(paths.overview, buildOverview(input));
+  await upsertGeneratedSection(paths.report, buildOverview(input));
   await upsertGeneratedSection(paths.architecture, buildArchitecture(input));
 }
 

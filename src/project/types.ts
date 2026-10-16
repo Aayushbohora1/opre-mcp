@@ -50,7 +50,7 @@ export function defaultProjectConfig(): ProjectConfig {
       args: [],
       port: null,
       startPath: '/',
-      appDir: 'generated-app',
+      appDir: 'app',
       maxValidationAttempts: null,
     },
   };

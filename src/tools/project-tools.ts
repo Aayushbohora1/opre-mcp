@@ -6,6 +6,7 @@ import { readFeatures } from '../knowledge/store.js';
 import { readFindings, readPages } from '../research/store.js';
 import { readRuns } from '../validation/store.js';
 import { createProject, listProjects, saveManifest } from '../project/store.js';
+import { deriveStage } from '../project/index-document.js';
 import { taskProgress, readTasks } from '../planning/store.js';
 import { blockedReason } from '../planning/types.js';
 import {
@@ -31,7 +32,7 @@ export function registerProjectTools(server: McpServer, config: OpreConfig): voi
     {
       title: 'Create an OPRE project',
       description:
-        'Creates an isolated, persistent project directory (research/, knowledge/, planning/, artifacts/, validation/, generated-app/) for a website or application target. Call this first; every other OPRE tool needs a project.',
+        'Creates an isolated, persistent project directory (research/, knowledge/, planning/, artifacts/, validation/, app/) for a website or application target. Call this first; every other OPRE tool needs a project.',
       inputSchema: {
         target: z
           .string()
@@ -78,9 +79,7 @@ export function registerProjectTools(server: McpServer, config: OpreConfig): voi
         appDir: z
           .string()
           .optional()
-          .describe(
-            'Project-relative directory holding the generated app. Default "generated-app".',
-          ),
+          .describe('Project-relative directory holding the generated app. Default "app".'),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     },
@@ -136,13 +135,13 @@ export function registerProjectTools(server: McpServer, config: OpreConfig): voi
                   ],
                   layout: {
                     research:
-                      'research/ (overview.md, architecture.md, sources.json, findings.json, pages.json)',
+                      'research/ (report.md, architecture.md, sources.json, findings.json, pages.json)',
                     knowledge:
                       'knowledge/ (features.json, requirements.md, decisions.md, uncertainties.md, workflows/)',
-                    planning: 'planning/ (implementation-plan.md, tasks.json)',
+                    planning: 'planning/ (plan.md, tasks.json)',
                     artifacts: 'artifacts/ (screenshots/, reports/)',
-                    validation: 'validation/ (test-results.json, known-gaps.md)',
-                    generatedApp: 'generated-app/',
+                    validation: 'validation/ (runs.json, known-gaps.md)',
+                    app: 'app/',
                   },
                 },
                 null,
@@ -225,14 +224,11 @@ export function registerProjectTools(server: McpServer, config: OpreConfig): voi
         .sort((a, b) => a.priority - b.priority);
       const failedRuns = runs.filter((run) => run.status !== 'passed');
 
-      const stage =
-        pages.length === 0
-          ? 'research'
-          : tasks.length === 0
-            ? 'planning'
-            : open.length === 0
-              ? 'complete'
-              : 'building';
+      const stage = deriveStage({
+        pages: pages.length,
+        tasks: tasks.length,
+        openTasks: open.length,
+      });
 
       return {
         data: {

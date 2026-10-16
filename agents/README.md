@@ -73,7 +73,7 @@ opre.update_project_config
 ```
 opre.get_next_task               { markInProgress: true }
 opre.prepare_build_context       { taskId: "<id>" }
-# implement only this task inside generated-app/
+# implement only this task inside app/
 opre.record_implementation_result { taskId: "<id>", outcome, summary, changedFiles, acceptanceResults, gaps }
 opre.run_validation              { taskId: "<id>" }
 ```

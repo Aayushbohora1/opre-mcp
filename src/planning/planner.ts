@@ -56,7 +56,7 @@ export async function draftPlan(
   const foundation = makeTask({
     title: 'Scaffold the generated application and verify it runs',
     description:
-      'Create the minimal runnable web application in generated-app/, wire the configured dev command, and confirm opre.run_validation can start it and load the root route.',
+      'Create the minimal runnable web application in app/, wire the configured dev command, and confirm opre.run_validation can start it and load the root route.',
     kind: 'foundation',
     priority: 0,
     featureIds: [],
@@ -165,7 +165,7 @@ export async function draftPlan(
   await writeFeatures(paths, dedupeById(features));
   await writePlan(paths, { metadata, tasks });
   const planDocument = renderPlan(metadata, features, tasks);
-  await upsertGeneratedSection(paths.implementationPlan, planDocument);
+  await upsertGeneratedSection(paths.plan, planDocument);
 
   return { mode: 'draft', features: dedupeById(features), tasks, metadata, planDocument, warnings };
 }
@@ -257,7 +257,7 @@ export async function applyPlan(paths: ProjectPaths, input: ApplyPlanInput): Pro
   await writeFeatures(paths, dedupeById(features));
   await writePlan(paths, { metadata, tasks });
   const planDocument = renderPlan(metadata, features, tasks);
-  await upsertGeneratedSection(paths.implementationPlan, planDocument);
+  await upsertGeneratedSection(paths.plan, planDocument);
 
   return { mode: 'apply', features: dedupeById(features), tasks, metadata, planDocument, warnings };
 }

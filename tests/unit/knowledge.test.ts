@@ -225,7 +225,7 @@ describe('generated document sections', () => {
     const env = await createTestEnv();
     try {
       const { project } = await seed(env);
-      const path = join(project.paths.root, 'research/overview.md');
+      const path = join(project.paths.root, 'research/report.md');
       await appendSection(path, '## Operator notes', 'I only care about the pricing page.');
 
       await upsertGeneratedSection(path, 'First generated body');

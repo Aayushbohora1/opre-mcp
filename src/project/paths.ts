@@ -3,13 +3,30 @@
  *
  * ```
  * <project>/
- *   opre.json
- *   research/{overview.md,sources.json,findings.json,pages.json,architecture.md}
- *   knowledge/{features.json,requirements.md,decisions.md,uncertainties.md,workflows/}
- *   planning/{implementation-plan.md,tasks.json}
- *   artifacts/{screenshots/,reports/}
- *   validation/{test-results.json,known-gaps.md}
- *   generated-app/
+ *   opre.json                 manifest: target, authorisation, runner config
+ *   README.md                 generated project index (status, next task, doc links)
+ *   research/
+ *     report.md               generated research report
+ *     architecture.md         generated inferences + what cannot be known
+ *     pages.json              route inventory
+ *     findings.json           findings with embedded evidence
+ *     sources.json            provenance for every finding
+ *   knowledge/
+ *     features.json           features, acceptance criteria, status
+ *     requirements.md         appended requirements
+ *     decisions.md            appended decisions
+ *     uncertainties.md        appended open questions and blocked tasks
+ *     workflows/<id>.md       user-flow notes
+ *   planning/
+ *     plan.md                 generated implementation plan
+ *     tasks.json              plan metadata + task records
+ *   validation/
+ *     runs.json               structured validation runs
+ *     known-gaps.md           failures appended by validation and build results
+ *   artifacts/
+ *     screenshots/            research and validation screenshots
+ *     reports/                build results, optional research HAR
+ *   app/                      the rebuilt application (written by the agent)
  * ```
  */
 
@@ -19,8 +36,9 @@ import { resolveInside } from '../security/paths.js';
 export interface ProjectPaths {
   root: string;
   manifest: string;
+  readme: string;
   research: string;
-  overview: string;
+  report: string;
   sources: string;
   findings: string;
   pages: string;
@@ -32,15 +50,15 @@ export interface ProjectPaths {
   uncertainties: string;
   workflows: string;
   planning: string;
-  implementationPlan: string;
+  plan: string;
   tasks: string;
   artifacts: string;
   screenshots: string;
   reports: string;
   validation: string;
-  testResults: string;
+  runs: string;
   knownGaps: string;
-  generatedApp: string;
+  app: string;
 }
 
 export function projectPaths(root: string): ProjectPaths {
@@ -52,8 +70,9 @@ export function projectPaths(root: string): ProjectPaths {
   return {
     root,
     manifest: join(root, 'opre.json'),
+    readme: join(root, 'README.md'),
     research,
-    overview: join(research, 'overview.md'),
+    report: join(research, 'report.md'),
     sources: join(research, 'sources.json'),
     findings: join(research, 'findings.json'),
     pages: join(research, 'pages.json'),
@@ -65,14 +84,14 @@ export function projectPaths(root: string): ProjectPaths {
     uncertainties: join(knowledge, 'uncertainties.md'),
     workflows: join(knowledge, 'workflows'),
     planning,
-    implementationPlan: join(planning, 'implementation-plan.md'),
+    plan: join(planning, 'plan.md'),
     tasks: join(planning, 'tasks.json'),
     artifacts,
     screenshots: join(artifacts, 'screenshots'),
     reports: join(artifacts, 'reports'),
     validation,
-    testResults: join(validation, 'test-results.json'),
+    runs: join(validation, 'runs.json'),
     knownGaps: join(validation, 'known-gaps.md'),
-    generatedApp: resolveInside(root, 'generated-app'),
+    app: resolveInside(root, 'app'),
   };
 }

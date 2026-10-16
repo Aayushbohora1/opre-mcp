@@ -31,6 +31,7 @@ import {
 import { shortId } from '../core/ids.js';
 import { InvalidInputError } from '../core/errors.js';
 import { resolveProject, type ResolvedProject } from '../project/store.js';
+import { refreshProjectIndex } from '../project/index-document.js';
 
 const projectParam = z.string().describe('Project name or id.');
 
@@ -173,6 +174,7 @@ export function registerResearchTools(server: McpServer, config: OpreConfig): vo
           screenshotCount: outcome.screenshots.length,
           searchProvider: search.provider,
         });
+        await refreshProjectIndex(project.paths, project.manifest);
 
         return {
           content: [
@@ -201,7 +203,7 @@ export function registerResearchTools(server: McpServer, config: OpreConfig): vo
                     links: page.links.length,
                     screenshot: page.screenshotPath,
                   })),
-                  reports: ['research/overview.md', 'research/architecture.md'],
+                  reports: ['research/report.md', 'research/architecture.md'],
                   nextStep:
                     'Call opre.get_research_summary, then opre.create_implementation_plan. Use opre.search_research instead of reading the full page list.',
                   untrustedContentWarning:
@@ -284,7 +286,7 @@ export function registerResearchTools(server: McpServer, config: OpreConfig): vo
             evidenceCount: finding.evidence.length,
             limitations: finding.limitations.slice(0, 2),
           })),
-          reports: ['research/overview.md', 'research/architecture.md'],
+          reports: ['research/report.md', 'research/architecture.md'],
           unknownBoundaries: [
             'Behaviour behind authentication, paywalls or user interaction',
             'Server-side implementation and data models',

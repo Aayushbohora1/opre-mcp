@@ -97,7 +97,7 @@ describe('MCP server (in-memory transport)', () => {
     expect(summary.findings.every((finding) => finding.limitations !== undefined)).toBe(true);
 
     // The generated report exists and the operator section survives regeneration.
-    const overview = await readFile(join(created.root, 'research/overview.md'), 'utf8');
+    const overview = await readFile(join(created.root, 'research/report.md'), 'utf8');
     expect(overview).toContain('## Route inventory');
 
     // --- planning -------------------------------------------------------
@@ -132,7 +132,7 @@ describe('MCP server (in-memory transport)', () => {
     const context = toolJson<{
       task: { id: string };
       budget: { maxChars: number; returnedChars: number };
-      generatedApp: { exists: boolean };
+      app: { exists: boolean };
     }>(
       await client.callTool({
         name: 'opre.prepare_build_context',
@@ -141,10 +141,10 @@ describe('MCP server (in-memory transport)', () => {
     );
     expect(context.task.id).toBe(next.task.id);
     expect(context.budget.returnedChars).toBeLessThanOrEqual(context.budget.maxChars);
-    expect(context.generatedApp.exists).toBe(true);
+    expect(context.app.exists).toBe(true);
 
     // Build a runnable app in generated-app/ and record the result.
-    const appDir = join(created.root, 'generated-app');
+    const appDir = join(created.root, 'app');
     await writeFile(
       join(appDir, 'package.json'),
       JSON.stringify({ name: 'rebuild', private: true, scripts: { start: 'server.js' } }, null, 2),
@@ -171,7 +171,7 @@ describe('MCP server (in-memory transport)', () => {
           taskId: next.task.id,
           outcome: 'succeeded',
           summary: 'Scaffolded a static server that serves the rebuilt home page.',
-          changedFiles: ['generated-app/server.js', 'generated-app/package.json'],
+          changedFiles: ['app/server.js', 'app/package.json'],
           acceptanceResults: [{ criterion: next.task.acceptanceCriteria[0] ?? 'runs', met: true }],
         },
       }),
@@ -186,7 +186,7 @@ describe('MCP server (in-memory transport)', () => {
         runnerCommand: 'node',
         runnerArgs: ['server.js'],
         runnerPort: site.port + 1000,
-        appDir: 'generated-app',
+        appDir: 'app',
       },
     });
 
@@ -206,7 +206,7 @@ describe('MCP server (in-memory transport)', () => {
     expect(validation.checks[0]?.observed ?? JSON.stringify(validation.checks[0])).toContain(
       'Rebuilt',
     );
-    expect(validation.reportPath).toBe('validation/test-results.json');
+    expect(validation.reportPath).toBe('validation/runs.json');
 
     const report = toolJson<{ totalRuns: number; lastRun: { status: string } | null }>(
       await client.callTool({ name: 'opre.get_validation_report', arguments: { project } }),
@@ -287,6 +287,46 @@ describe('MCP server (in-memory transport)', () => {
     );
     expect(report.openGaps).toBeGreaterThan(0);
     expect(report.lastRun?.failures).toBeGreaterThan(0);
+  });
+
+  it('generates a project index that tracks progress', async () => {
+    const created = toolJson<{ project: string; root: string }>(
+      await client.callTool({
+        name: 'opre.create_project',
+        arguments: {
+          target: 'https://index-check.example',
+          targetType: 'web',
+          name: 'index-check',
+        },
+      }),
+    );
+
+    const initial = await readFile(join(created.root, 'README.md'), 'utf8');
+    expect(initial).toContain('stage: **research**');
+    expect(initial).toContain('`app/` | the rebuilt application');
+
+    await client.callTool({
+      name: 'opre.create_implementation_plan',
+      arguments: { project: created.project, goal: 'Rebuild the marketing site.', mode: 'draft' },
+    });
+
+    const updated = await readFile(join(created.root, 'README.md'), 'utf8');
+    expect(updated).toContain('stage: **building**');
+    expect(updated).toMatch(/Next task/);
+
+    // Hand-written content outside the generated markers is preserved.
+    await writeFile(
+      join(created.root, 'README.md'),
+      `${updated}\n## My notes\n\nKeep me.\n`,
+      'utf8',
+    );
+    await client.callTool({
+      name: 'opre.create_implementation_plan',
+      arguments: { project: created.project, goal: 'Rebuild the marketing site.', mode: 'draft' },
+    });
+    const regenerated = await readFile(join(created.root, 'README.md'), 'utf8');
+    expect(regenerated).toContain('Keep me.');
+    expect(regenerated.match(/opre:generated:begin/g)).toHaveLength(1);
   });
 
   it('returns structured errors instead of crashing', async () => {
@@ -429,7 +469,7 @@ describe('MCP prompts', () => {
 });
 
 describe('generated app layout', () => {
-  it('creates an empty generated-app directory at project creation', async () => {
+  it('creates an empty app directory at project creation', async () => {
     const env = await createTestEnv();
     try {
       const { server } = createOpreServer({ config: env.config });
@@ -444,10 +484,10 @@ describe('generated app layout', () => {
       );
       await client.close();
 
-      const entries = await readdir(join(created.root, 'generated-app'));
+      const entries = await readdir(join(created.root, 'app'));
       expect(entries).toEqual([]);
-      await mkdir(join(created.root, 'generated-app/src'), { recursive: true });
-      await expect(readdir(join(created.root, 'generated-app'))).resolves.toContain('src');
+      await mkdir(join(created.root, 'app/src'), { recursive: true });
+      await expect(readdir(join(created.root, 'app'))).resolves.toContain('src');
     } finally {
       await env.cleanup();
     }

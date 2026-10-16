@@ -16,7 +16,7 @@ Reconstruct the website `$ARGUMENTS` using the OPRE MCP tools. Follow
    start the generated app.
 5. Repeat until the plan is satisfied:
    `opre.get_next_task` → `opre.prepare_build_context` → implement only that task in
-   `generated-app/` → `opre.record_implementation_result` → `opre.run_validation`.
+   `app/` → `opre.record_implementation_result` → `opre.run_validation`.
 6. Never load the whole knowledge base: use `opre.search_knowledge`, `opre.get_feature`,
    `opre.get_evidence`, `opre.get_document_excerpt`.
 7. Finish by reporting verified criteria, blocked items and remaining unknowns, and record

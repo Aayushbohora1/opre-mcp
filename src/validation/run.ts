@@ -19,6 +19,7 @@ import type { BrowserCheckSpec, TaskRecord } from '../planning/types.js';
 import type { ProjectPaths } from '../project/paths.js';
 import type { ProjectManifest } from '../project/types.js';
 import { resolveInside } from '../security/paths.js';
+import { refreshProjectIndex } from '../project/index-document.js';
 import { parseUrl } from '../security/url.js';
 import { checksForTask, runBrowserChecks } from './browser-checks.js';
 import { resolveServerSpec, startDevServer, waitForPort, type DevServerHandle } from './runner.js';
@@ -171,6 +172,7 @@ export async function runValidation(
 
     await appendRun(paths, run);
     await appendKnownGaps(paths, gaps, runId);
+    await refreshProjectIndex(paths, manifest);
 
     const attemptsRemaining = maxAttempts - attemptNumber;
     const stopped = failed.length > 0 && attemptsRemaining <= 0;
@@ -192,7 +194,7 @@ export async function runValidation(
       consoleErrors: outcome.consoleErrors,
       failedRequests: outcome.failedRequests,
       gaps,
-      reportPath: 'validation/test-results.json',
+      reportPath: 'validation/runs.json',
       nextAction:
         failed.length === 0
           ? 'Mark the task done with opre.update_task_status, then take the next task with opre.get_next_task.'
@@ -276,7 +278,7 @@ export async function summariseValidation(paths: ProjectPaths): Promise<Validati
       failures: run.checks.filter((check) => check.status !== 'passed').length,
       attemptNumber: run.attemptNumber,
     })),
-    path: 'validation/test-results.json',
+    path: 'validation/runs.json',
   };
 }
 

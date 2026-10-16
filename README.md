@@ -118,7 +118,7 @@ node dist/index.js --print-config
 5. Configure the runner once: `opre.update_project_config` with `runnerCommand` / `runnerArgs` /
    `runnerPort` (e.g. `npm`, `["run", "dev", "--", "--port", "4173"]`).
 6. Loop until the plan is satisfied:
-   `opre.get_next_task` → `opre.prepare_build_context` → implement in `generated-app/` →
+   `opre.get_next_task` → `opre.prepare_build_context` → implement in `app/` →
    `opre.record_implementation_result` → `opre.run_validation`.
 7. `opre.get_validation_report` and `validation/known-gaps.md` feed the next iteration.
 
@@ -177,10 +177,11 @@ configured, or no Chromium available).
 ## Project layout
 
 ```
-<OPRE_HOME>/<project-name>-<id8>/
+<OPRE_HOME>/<project>/
   opre.json                     manifest: target, authorisation, runner config, allowed hosts
+  README.md                     generated index: stage, progress, next task, where things live
   research/
-    overview.md                 generated report (routes, findings index, errors, blocked requests)
+    report.md                   generated report (routes, findings index, errors, blocked requests)
     architecture.md             generated inferences + what cannot be known
     sources.json                every source with trust level and timestamp
     findings.json               findings with embedded evidence and limitations
@@ -192,18 +193,22 @@ configured, or no Chromium available).
     uncertainties.md            appended open questions / blocked tasks
     workflows/<id>.md           user-flow notes
   planning/
-    implementation-plan.md      generated plan (tasks in dependency order)
+    plan.md                     generated plan (tasks in dependency order)
     tasks.json                  plan metadata + task records
+  validation/
+    runs.json                   structured validation runs
+    known-gaps.md               failures appended by validation and build results
   artifacts/
     screenshots/                research and validation screenshots
     reports/                    build results, optional research HAR
-  validation/
-    test-results.json           structured validation runs
-    known-gaps.md               failures appended by validation and build results
-  generated-app/                the rebuilt application (written by the agent)
+  app/                          the rebuilt application (written by the agent)
 ```
 
-Regenerated markdown is written between `<!-- opre:generated:begin -->` and
+The directory name is the readable project slug (`example-com`); a second project for the
+same target becomes `example-com-2`. The unique id lives in `opre.json`.
+
+Regenerated markdown (`README.md`, `research/report.md`, `research/architecture.md`,
+`planning/plan.md`) is written between `<!-- opre:generated:begin -->` and
 `<!-- opre:generated:end -->` markers. Anything you write outside those markers is preserved.
 
 ---

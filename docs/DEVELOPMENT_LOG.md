@@ -28,7 +28,7 @@ that mapping is the agent's reasoning job, with OPRE supplying evidence.
 ## Milestone 5 — execution and validation — **verified**
 
 - `src/validation/runner.ts` — starts the configured dev server with `shell: false`, a denylisted
-  executable check, a metacharacter check on every argument, a fixed `generated-app` working
+  executable check, a metacharacter check on every argument, a fixed `app` working
   directory, a symlink-escape check, a scrubbed child environment and a port-readiness wait.
   `OPRE_RUNNER_ENABLED=false` disables it entirely.
 - `src/validation/browser-checks.ts` — declarative checks (`navigate`, `assert_text`,
@@ -38,7 +38,7 @@ that mapping is the agent's reasoning job, with OPRE supplying evidence.
   attempts per task and stops at the configured limit with an explicit stop reason.
 - Tests: `tests/integration/runner.test.ts` (command safety, real spawn, real stop) and the
   end-to-end workflow test in `tests/integration/mcp-server.test.ts`, which builds a small Node
-  app in `generated-app/`, starts it through OPRE and asserts a passing check with `observed`
+  app in `app/`, starts it through OPRE and asserts a passing check with `observed`
   containing the rendered title.
 
 **Not implemented:** traces, network fixtures, visual regression baselines, and coverage reports.
@@ -53,7 +53,7 @@ that mapping is the agent's reasoning job, with OPRE supplying evidence.
 - `src/planning/store.ts` — task persistence, status transitions, progress counts and
   dependency-aware `selectNextTask`.
 - `src/build/context.ts` — assembles task-scoped context (task, features, supporting findings,
-  evidence, relevant pages, decision tail, previous attempts, `generated-app` state, validation
+  evidence, relevant pages, decision tail, previous attempts, `app` state, validation
   plan) and deterministically trims it to a character budget, reporting what was dropped.
 - `src/tools/build-tools.ts` — `opre.prepare_build_context` and
   `opre.record_implementation_result` (files, commands, acceptance results, gaps, feature status
@@ -74,7 +74,7 @@ that mapping is the agent's reasoning job, with OPRE supplying evidence.
   limitations.
 - `src/research/search-adapter.ts` — explicit provider model; `none` returns
   `unsupported_capability` instead of inventing results. SearXNG is supported.
-- `src/research/report.ts` — regenerates `research/overview.md` and `research/architecture.md`
+- `src/research/report.ts` — regenerates `research/report.md` and `research/architecture.md`
   inside marker-delimited blocks.
 - Tests: the integration suite crawls a local fixture site (with `OPRE_ALLOW_PRIVATE_NETWORK=true`)
   and asserts pages, forms, screenshots, injection warnings and the generated report.

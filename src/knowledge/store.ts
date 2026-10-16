@@ -80,12 +80,12 @@ export async function appendWorkflowDoc(
 }
 
 const DOCUMENT_KINDS: Array<{ kind: DocumentRef['kind']; glob: string[] }> = [
-  { kind: 'research', glob: ['research/overview.md', 'research/architecture.md'] },
+  { kind: 'research', glob: ['research/report.md', 'research/architecture.md'] },
   {
     kind: 'knowledge',
     glob: ['knowledge/requirements.md', 'knowledge/decisions.md', 'knowledge/uncertainties.md'],
   },
-  { kind: 'planning', glob: ['planning/implementation-plan.md'] },
+  { kind: 'planning', glob: ['planning/plan.md'] },
   { kind: 'validation', glob: ['validation/known-gaps.md'] },
 ];
 

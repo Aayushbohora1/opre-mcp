@@ -141,7 +141,7 @@ describe('package inspection', () => {
     expect(findings.some((finding) => finding.statement.includes('archive with'))).toBe(true);
     expect(sources.some((source) => source.type === 'package-metadata')).toBe(true);
 
-    const overview = await readFile(join(project.paths.root, 'research/overview.md'), 'utf8');
+    const overview = await readFile(join(project.paths.root, 'research/report.md'), 'utf8');
     expect(overview).toContain('Package inspection');
 
     await client.close();

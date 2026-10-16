@@ -11,13 +11,10 @@ import { basename, isAbsolute, join, resolve } from 'node:path';
 import type { OpreConfig, TargetType } from '../config.js';
 import { ConflictError, InvalidInputError, NotFoundError } from '../core/errors.js';
 import { newProjectId, nowIso } from '../core/ids.js';
-import {
-  readJsonFile,
-  writeFileAtomic as writeTextFileAtomic,
-  writeJsonFile,
-} from '../core/json-store.js';
+import { readJsonFile, writeFileAtomic, writeJsonFile } from '../core/json-store.js';
 import { parseUrl } from '../security/url.js';
 import { projectPaths, type ProjectPaths } from './paths.js';
+import { refreshProjectIndex } from './index-document.js';
 import { defaultProjectConfig, PROJECT_SCHEMA_VERSION, type ProjectManifest } from './types.js';
 
 export interface CreateProjectInput {
@@ -73,10 +70,13 @@ export async function createProject(
     );
   }
 
+  // The directory keeps the human-readable slug; the unique id lives in opre.json.
+  // A collision gets a numeric suffix rather than an opaque hash.
+  const root = await allocateProjectDir(config.homeDir, baseName);
   const manifest: ProjectManifest = {
     schemaVersion: PROJECT_SCHEMA_VERSION,
     id,
-    name: `${baseName}-${id.slice(0, 8)}`,
+    name: basename(root),
     title:
       input.title ??
       (isApp ? `Application: ${basename(input.target)}` : `Website: ${hostOf(target)}`),
@@ -94,16 +94,11 @@ export async function createProject(
         args: input.runnerArgs ?? [],
         port: input.runnerPort ?? null,
         startPath: input.startPath ?? '/',
-        appDir: input.appDir ?? 'generated-app',
+        appDir: input.appDir ?? 'app',
         maxValidationAttempts: null,
       },
     },
   };
-
-  const root = join(config.homeDir, manifest.name);
-  if (await pathExists(root)) {
-    throw new ConflictError(`Project directory already exists: ${root}`);
-  }
 
   const paths = projectPaths(root);
   await mkdir(root, { recursive: true });
@@ -115,7 +110,7 @@ export async function createProject(
     mkdir(paths.screenshots, { recursive: true }),
     mkdir(paths.reports, { recursive: true }),
     mkdir(paths.validation, { recursive: true }),
-    mkdir(paths.generatedApp, { recursive: true }),
+    mkdir(paths.app, { recursive: true }),
   ]);
 
   await writeJsonDocument(paths.manifest, manifest);
@@ -124,11 +119,11 @@ export async function createProject(
   await writeJsonFile(paths.pages, []);
   await writeJsonFile(paths.features, []);
   await writeJsonFile(paths.tasks, []);
-  await writeJsonFile(paths.testResults, []);
+  await writeJsonFile(paths.runs, []);
 
   await Promise.all([
     writeText(
-      paths.overview,
+      paths.report,
       `# Research overview\n\nProject \`${manifest.name}\` targets <${manifest.target}>.\n`,
     ),
     writeText(
@@ -145,7 +140,7 @@ export async function createProject(
     ),
     writeText(paths.uncertainties, '# Uncertainties\n\nOpen questions and unverified behaviour.\n'),
     writeText(
-      paths.implementationPlan,
+      paths.plan,
       '# Implementation plan\n\n_No plan yet. Run `opre.create_implementation_plan`._\n',
     ),
     writeText(
@@ -154,12 +149,28 @@ export async function createProject(
     ),
   ]);
 
+  await refreshProjectIndex(paths, manifest);
+
   return { manifest, paths };
 }
 
+/** Returns a free directory under `home`, adding `-2`, `-3`, … on collision. */
+async function allocateProjectDir(home: string, baseName: string): Promise<string> {
+  const first = join(home, baseName);
+  if (!(await pathExists(first))) {
+    return first;
+  }
+  for (let suffix = 2; suffix <= 99; suffix += 1) {
+    const candidate = join(home, `${baseName}-${suffix}`);
+    if (!(await pathExists(candidate))) {
+      return candidate;
+    }
+  }
+  throw new ConflictError(`Too many projects named "${baseName}" already exist in ${home}`);
+}
+
 async function writeText(path: string, contents: string): Promise<void> {
-  const { writeFile } = await import('node:fs/promises');
-  await writeFile(path, contents, 'utf8');
+  await writeFileAtomic(path, contents);
 }
 
 export interface ListProjectEntry {
@@ -279,7 +290,7 @@ export async function saveManifest(project: ResolvedProject): Promise<void> {
 
 /** `opre.json` stays a plain, human-readable JSON object. */
 async function writeJsonDocument(path: string, value: unknown): Promise<void> {
-  await writeTextFileAtomic(path, `${JSON.stringify(value, null, 2)}\n`);
+  await writeFileAtomic(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 export function projectLabel(project: ResolvedProject): { id: string; name: string; root: string } {

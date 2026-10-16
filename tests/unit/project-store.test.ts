@@ -58,10 +58,15 @@ describe('project store', () => {
 
       const manifest = JSON.parse(await readFile(project.paths.manifest, 'utf8')) as {
         name: string;
+        id: string;
       };
-      expect(manifest.name).toMatch(/^example-com-[0-9a-f]{8}$/);
+      // Clean, human-readable directory name; the unique id lives in the manifest.
+      expect(manifest.name).toBe('example-com');
+      expect(project.paths.root.endsWith('example-com')).toBe(true);
+      expect(manifest.id).toMatch(/^[0-9a-f-]{36}$/);
       for (const relativePath of [
-        'research/overview.md',
+        'README.md',
+        'research/report.md',
         'research/architecture.md',
         'research/sources.json',
         'research/findings.json',
@@ -70,9 +75,9 @@ describe('project store', () => {
         'knowledge/requirements.md',
         'knowledge/decisions.md',
         'knowledge/uncertainties.md',
-        'planning/implementation-plan.md',
+        'planning/plan.md',
         'planning/tasks.json',
-        'validation/test-results.json',
+        'validation/runs.json',
         'validation/known-gaps.md',
       ]) {
         await expect(readFile(join(project.paths.root, relativePath), 'utf8')).resolves.toBeTypeOf(
@@ -95,9 +100,18 @@ describe('project store', () => {
         target: 'https://b.example',
         targetType: 'web',
       });
+      const duplicate = await createProject(env.config, {
+        target: 'https://a.example',
+        targetType: 'web',
+      });
+
+      // A second project for the same target gets a readable numeric suffix.
+      expect(first.manifest.name).toBe('a-example');
+      expect(duplicate.manifest.name).toBe('a-example-2');
+      expect(duplicate.manifest.id).not.toBe(first.manifest.id);
 
       const projects = await listProjects(env.config);
-      expect(projects).toHaveLength(2);
+      expect(projects).toHaveLength(3);
 
       const byName = await resolveProject(env.config, first.manifest.name);
       const byIdPrefix = await resolveProject(env.config, first.manifest.id.slice(0, 8));

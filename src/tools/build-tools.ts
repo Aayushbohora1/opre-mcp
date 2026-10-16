@@ -13,6 +13,7 @@ import type { FeatureStatus } from '../knowledge/types.js';
 import { getTask, saveTaskStatus } from '../planning/store.js';
 import type { TaskRecord } from '../planning/types.js';
 import { assertSafeSegment, resolveInside } from '../security/paths.js';
+import { refreshProjectIndex } from '../project/index-document.js';
 import {
   argArray,
   argBoolean,
@@ -31,7 +32,7 @@ export function registerBuildTools(server: McpServer, config: OpreConfig): void 
     {
       title: 'Prepare build context for a task',
       description:
-        'Returns the minimum context needed to implement one task: the task, its features and acceptance criteria, the supporting findings and evidence, relevant researched routes, recent decisions, previous attempts, the state of generated-app/ and the validation plan. Bounded to a fixed character budget; dropped sections are reported so you can request them explicitly.',
+        'Returns the minimum context needed to implement one task: the task, its features and acceptance criteria, the supporting findings and evidence, relevant researched routes, recent decisions, previous attempts, the state of app/ and the validation plan. Bounded to a fixed character budget; dropped sections are reported so you can request them explicitly.',
       inputSchema: {
         project: projectParam,
         taskId: z.string().describe('Task to prepare context for (from opre.get_next_task).'),
@@ -216,6 +217,7 @@ export function registerBuildTools(server: McpServer, config: OpreConfig): void 
 
       const unmet = acceptanceResults.filter((entry) => !entry.met).map((entry) => entry.criterion);
       const results = await readBuildResults(project.paths);
+      await refreshProjectIndex(project.paths, project.manifest);
 
       return {
         data: {
